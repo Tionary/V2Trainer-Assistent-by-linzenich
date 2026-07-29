@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kraft-Coach · Trainer-Assistent by linzenich</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Italianno&family=Source+Sans+3:wght@200;300;400;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+/* ─── BASE ─── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+    --bg0:#0a261f;--bg1:#123e31;--bg2:#144A3C;--bgc:#16493b;
+    --acc:#5cb85c;--acch:#4cae4c;--gold:#af8f61;--gold-lt:#d8b889;--gold-dk:#7d6240;--green-lt:#7fd27f;--red:#e05252;--darkred:#a11c1c;--orange:#e0a030;--blue:#4cc9f0;
+    --txt:#f2efe8;--mut:#9fb3aa;
+    --font:'Source Sans 3',ui-sans-serif,system-ui,sans-serif;
+    --script:'Italianno',cursive;--ms:'Material Symbols Outlined';
+}
+html,body{min-height:100vh;font-family:var(--font);color:var(--txt);overflow-x:hidden}
+body{background:
+  radial-gradient(ellipse 80% 45% at 50% 0%,rgba(92,184,92,.13),transparent 55%),
+  radial-gradient(ellipse 60% 40% at 50% 0%,rgba(175,143,97,.09),transparent 52%),
+  radial-gradient(ellipse 120% 90% at 50% 38%,#14463a 0%,#0c3025 38%,#081e18 70%,#050f0c 100%);
+  background-attachment:fixed}
+body::before,body::after{content:'';position:fixed;border-radius:50%;filter:blur(90px);z-index:0;pointer-events:none}
+body::before{width:460px;height:460px;top:-160px;left:-140px;background:radial-gradient(circle,rgba(92,184,92,.15),transparent 70%)}
+body::after{width:420px;height:420px;bottom:-170px;right:-120px;background:radial-gradient(circle,rgba(175,143,97,.12),transparent 70%)}
+
+/* ─── TOP NAV ─── */
+.topnav{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:.85rem;padding:.9rem 1.5rem;background:linear-gradient(180deg,rgba(13,46,37,.92),rgba(13,46,37,.72));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid rgba(175,143,97,.22);box-shadow:0 6px 22px -12px rgba(0,0,0,.7)}
+.topnav__back{display:inline-flex;align-items:center;gap:.4rem;color:var(--mut);font-size:.84rem;font-weight:600;text-decoration:none;padding:.42rem .8rem .42rem .55rem;border-radius:.6rem;background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(0,0,0,.15));box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 0 0 1px rgba(175,143,97,.18);transition:color .2s,box-shadow .2s,transform .2s}.topnav__back:hover{color:var(--txt);transform:translateX(-2px);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 0 0 1px rgba(175,143,97,.4)}
+.ms{font-family:var(--ms);font-style:normal;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24;line-height:1}
+.topnav__sep{color:rgba(175,143,97,.5)}.topnav__title{font-size:.92rem;font-weight:800;letter-spacing:-.01em}
+.topnav__logo{margin-left:auto;font-family:var(--script);font-size:1.55rem;color:var(--gold-lt)}
+
+/* ─── PAGE ─── */
+.page{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:2rem 1.25rem 4rem;display:flex;flex-direction:column;gap:1.75rem}
+
+/* ─── CARD ─── */
+.card{position:relative;background:radial-gradient(ellipse 120% 70% at 80% 0%,rgba(92,184,92,.08),transparent 55%),linear-gradient(158deg,#1c5645 0%,#154a3b 46%,#0f382d 80%,#0c2d24 100%);border:1px solid rgba(175,143,97,.20);border-radius:1.2rem;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 22px 40px -20px rgba(0,0,0,.7),0 6px 14px -8px rgba(0,0,0,.55)}
+.card-head{padding:1.05rem 1.5rem;display:flex;align-items:center;gap:.75rem;
+    border-bottom:1px solid rgba(175,143,97,.15);background:linear-gradient(180deg,rgba(255,255,255,.04),transparent)}
+.ch-icon{font-family:var(--ms);font-size:1.35rem;background:linear-gradient(160deg,var(--gold-lt),var(--gold) 55%,var(--gold-dk));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24}
+.ch-title{font-size:1.02rem;font-weight:800;letter-spacing:-.01em}
+.ch-badge{margin-left:auto;font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+    padding:.24rem .65rem;border-radius:9999px;background:linear-gradient(160deg,rgba(92,184,92,.26),rgba(92,184,92,.10));color:#bff0bf;
+    box-shadow:0 0 0 1px rgba(92,184,92,.4) inset}
+.card-body{padding:1.6rem}
+
+/* ─── COLLAPSIBLE CARD ─── */
+.card--collapsible>.card-head{cursor:pointer;user-select:none;transition:background .2s}
+.card--collapsible>.card-head:hover{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.01))}
+.card--collapsible>.card-head:focus-visible{outline:2px solid var(--gold-lt);outline-offset:-3px}
+.card--collapsible .ch-badge{margin-left:auto}
+.ch-chev{font-family:var(--ms);font-size:1.3rem;color:var(--gold-lt);flex-shrink:0;
+    transition:transform .3s cubic-bezier(.16,1,.3,1);font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+.card--collapsible:not(.collapsed) .ch-chev{transform:rotate(180deg)}
+.card--collapsible.collapsed>.card-head{border-bottom-color:transparent}
+.card--collapsible.collapsed>.card-body{display:none}
+
+/* ─── INPUTS ─── */
+.field{display:flex;flex-direction:column;gap:.4rem}
+.field label{font-size:.74rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+.field input,.field select{background:rgba(0,0,0,.22);border:1px solid rgba(175,143,97,.22);border-radius:.6rem;
+    padding:.7rem .95rem;color:var(--txt);font-family:var(--font);font-size:.95rem;outline:none;width:100%;
+    box-shadow:0 2px 5px rgba(0,0,0,.25) inset;transition:border-color .2s,box-shadow .2s}
+.field input:focus,.field select:focus{border-color:var(--gold);box-shadow:0 2px 5px rgba(0,0,0,.25) inset,0 0 0 3px rgba(175,143,97,.15)}
+.field input::placeholder{color:rgba(159,179,170,.4)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;align-items:end}
+@media(max-width:540px){.fgrid{grid-template-columns:1fr 1fr}}
+
+/* ─── ORM HERO ─── */
+.orm-hero{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse 90% 80% at 50% 0%,rgba(92,184,92,.14),transparent 60%),linear-gradient(160deg,rgba(0,0,0,.25),rgba(0,0,0,.4));
+    border:1px solid rgba(175,143,97,.25);border-radius:1.1rem;
+    padding:1.7rem 1rem;text-align:center;margin-top:1rem;
+    box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 10px 26px -14px rgba(0,0,0,.6);
+}
+.orm-num{font-size:4.8rem;font-weight:900;line-height:1;letter-spacing:-.045em;background:linear-gradient(160deg,var(--green-lt),var(--acc) 60%,#3f9a3f);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 3px 14px rgba(92,184,92,.4))}
+.orm-unit{font-size:.82rem;color:var(--mut);margin-top:.25rem;letter-spacing:.06em;text-transform:uppercase}
+.orm-sub{font-size:.75rem;color:rgba(156,163,175,.55);margin-top:.5rem;font-style:italic}
+
+/* ─── GOAL / IDEAL WEIGHT ─── */
+.goal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+@media(max-width:540px){.goal-grid{grid-template-columns:1fr}}
+
+.goal-result{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse 90% 80% at 50% 0%,rgba(92,184,92,.14),transparent 60%),linear-gradient(160deg,rgba(0,0,0,.25),rgba(0,0,0,.4));
+    border:1px solid rgba(92,184,92,.28);border-radius:1.1rem;
+    padding:1.6rem 1rem;text-align:center;margin-top:1.25rem;
+    box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 10px 26px -14px rgba(0,0,0,.6);
+}
+.goal-result .gr-label{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--green-lt);margin-bottom:.35rem}
+.gr-num{font-size:3.4rem;font-weight:900;line-height:1;letter-spacing:-.04em;background:linear-gradient(160deg,var(--green-lt),var(--acc) 60%,#3f9a3f);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 3px 14px rgba(92,184,92,.4))}
+.gr-num .gr-dash{-webkit-text-fill-color:var(--mut);font-weight:400;font-size:2.2rem;padding:0 .35rem;vertical-align:.15em}
+.gr-unit{font-size:.82rem;color:var(--mut);margin-top:.3rem;letter-spacing:.06em;text-transform:uppercase}
+.gr-reps{font-size:.8rem;color:rgba(156,163,175,.7);margin-top:.55rem}
+
+/* ─── INTENSITY TABLE (horizontal) ─── */
+.int-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -.25rem;padding:.25rem}
+.int-table{display:flex;gap:.6rem;min-width:max-content;padding:.25rem .25rem .75rem}
+
+.int-col{
+    display:flex;flex-direction:column;align-items:center;
+    background:var(--bg1);border:1px solid rgba(92,184,92,.15);
+    border-radius:.75rem;padding:.75rem .6rem;min-width:78px;
+    transition:border-color .2s,transform .2s;cursor:default;
+    position:relative;overflow:hidden;
+}
+.int-col::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:.75rem .75rem 0 0}
+.int-col:hover{border-color:rgba(92,184,92,.4);transform:translateY(-2px)}
+.int-col.col-100::before{background:var(--darkred)}
+.int-col.col-hi::before{background:var(--red)}
+.int-col.col-mid::before{background:var(--orange)}
+.int-col.col-lo::before{background:var(--acc)}
+.int-col.col-base::before{background:rgba(92,184,92,.4)}
+
+.ic-pct{font-size:.7rem;font-weight:800;letter-spacing:.08em;color:var(--mut);margin-bottom:.4rem;text-transform:uppercase}
+.int-col.col-100 .ic-pct{color:var(--darkred)}
+.int-col.col-hi .ic-pct{color:var(--red)}
+.int-col.col-mid .ic-pct{color:var(--orange)}
+.int-col.col-lo .ic-pct,.int-col.col-base .ic-pct{color:var(--acc)}
+
+.ic-kg{font-size:1.35rem;font-weight:800;line-height:1;color:var(--txt)}
+.ic-kgu{font-size:.65rem;color:var(--mut);margin-top:.1rem;margin-bottom:.5rem}
+.ic-reps{font-size:.68rem;color:var(--mut);padding:.2rem .4rem;background:rgba(255,255,255,.05);
+    border-radius:.3rem;white-space:nowrap}
+
+/* ─── SELECTOR CARDS (goals + schema) ─── */
+.schema-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
+@media(max-width:540px){.schema-grid{grid-template-columns:1fr}}
+.schema-card{
+    background:var(--bg1);border:2px solid rgba(92,184,92,.15);border-radius:.9rem;
+    padding:1.1rem 1rem;cursor:pointer;transition:all .2s;
+    display:flex;flex-direction:column;gap:.5rem;
+}
+.schema-card:hover{border-color:rgba(92,184,92,.4);background:var(--bg2)}
+.schema-card.active{border-color:var(--acc);background:rgba(92,184,92,.08);
+    box-shadow:0 0 0 1px rgba(92,184,92,.15),0 4px 20px rgba(92,184,92,.1)}
+.sc-icon{font-family:var(--ms);font-size:1.6rem;color:var(--mut);transition:color .2s;
+    font-variation-settings:'FILL' 0,'wght' 200,'GRAD' 0,'opsz' 32}
+.schema-card.active .sc-icon{color:var(--acc)}
+.sc-title{font-size:.95rem;font-weight:800;color:var(--txt)}
+.schema-card.active .sc-title{color:var(--acc)}
+.sc-sub{font-size:.75rem;color:var(--mut);line-height:1.45}
+.sc-tag{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    padding:.18rem .5rem;border-radius:9999px;background:rgba(92,184,92,.1);
+    color:rgba(156,163,175,.7);border:1px solid rgba(92,184,92,.15);display:inline-block;margin-top:.1rem}
+.schema-card.active .sc-tag{background:rgba(92,184,92,.15);color:var(--acc);border-color:rgba(92,184,92,.3)}
+
+/* ─── TOGGLE PILLS ─── */
+.toggle-row{display:flex;flex-wrap:wrap;gap:.75rem}
+.toggle{
+    display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font);font-size:.85rem;font-weight:700;
+    color:var(--mut);cursor:pointer;padding:.6rem 1.05rem;border-radius:9999px;
+    background:var(--bg1);border:2px solid rgba(92,184,92,.15);transition:all .2s;
+}
+.toggle .ms{font-size:1.15rem;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24}
+.toggle:hover{border-color:rgba(92,184,92,.4)}
+.toggle.active{color:var(--acc);border-color:var(--acc);background:rgba(92,184,92,.10);
+    box-shadow:0 0 0 1px rgba(92,184,92,.15)}
+.toggle .tg-state{font-size:.62rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    padding:.14rem .45rem;border-radius:9999px;background:rgba(159,179,170,.15);color:var(--mut)}
+.toggle.active .tg-state{background:rgba(92,184,92,.2);color:var(--acc)}
+
+/* ─── PROGRESSION PLAN ─── */
+.plan-header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem}
+.plan-title{font-size:1rem;font-weight:700}
+.plan-orm-note{font-size:.78rem;color:var(--mut)}
+
+/* Block label */
+.block-label{font-size:.68rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+    padding:.3rem .75rem;border-radius:9999px;margin:1rem 0 .75rem;display:inline-block}
+.bl-acc{background:rgba(92,184,92,.1);color:var(--acc);border:1px solid rgba(92,184,92,.25)}
+.bl-int{background:rgba(224,160,48,.1);color:var(--orange);border:1px solid rgba(224,160,48,.25)}
+.bl-rea{background:rgba(224,82,82,.1);color:var(--red);border:1px solid rgba(224,82,82,.25)}
+.bl-wave1{background:rgba(76,201,240,.1);color:#4cc9f0;border:1px solid rgba(76,201,240,.25)}
+.bl-wave2{background:rgba(175,143,97,.1);color:var(--gold);border:1px solid rgba(175,143,97,.25)}
+
+/* Week cards grid */
+.weeks-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.85rem}
+@media(max-width:640px){.weeks-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:380px){.weeks-grid{grid-template-columns:1fr}}
+
+.week-card{
+    background:var(--bg1);border:1px solid rgba(92,184,92,.15);border-radius:.85rem;
+    padding:1rem .95rem;position:relative;overflow:hidden;
+    transition:border-color .2s,transform .2s;
+}
+.week-card:hover{border-color:rgba(92,184,92,.35);transform:translateY(-2px)}
+.week-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.wk-a::before{background:var(--acc)}
+.wk-o::before{background:var(--orange)}
+.wk-r::before{background:var(--red)}
+.wk-g::before{background:var(--gold)}
+.wk-b::before{background:#4cc9f0}
+
+.wk-num{font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:.5rem}
+.wk-pct{font-size:1.5rem;font-weight:800;letter-spacing:-.02em;line-height:1}
+.wk-kg{font-size:.85rem;color:var(--mut);margin-top:.2rem;margin-bottom:.6rem}
+.wk-sets{font-size:.9rem;font-weight:700;color:var(--txt)}
+.wk-phase{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    margin-top:.6rem;padding:.18rem .45rem;border-radius:9999px;display:inline-block}
+
+/* Phase color helpers */
+.ph-aufbau{background:rgba(92,184,92,.12);color:var(--acc)}
+.ph-steigerung{background:rgba(224,160,48,.12);color:var(--orange)}
+.ph-intensiv{background:rgba(224,82,82,.12);color:var(--red)}
+.ph-peak{background:rgba(175,143,97,.15);color:var(--gold)}
+.ph-welle{background:rgba(76,201,240,.1);color:#4cc9f0}
+
+/* ─── DIVIDER ─── */
+.sec-sep{display:flex;align-items:center;gap:.75rem;margin:1.5rem 0 1rem}
+.sec-sep span{font-size:.68rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--mut);white-space:nowrap}
+.sec-sep::before,.sec-sep::after{content:'';flex:1;height:1px;background:rgba(92,184,92,.15)}
+
+/* ─── INFO BOX ─── */
+.info-box{background:rgba(92,184,92,.06);border:1px solid rgba(92,184,92,.18);border-radius:.65rem;
+    padding:.75rem 1rem;font-size:.82rem;color:var(--mut);line-height:1.6;display:flex;gap:.6rem}
+.info-box .ms{font-size:1.1rem;color:var(--acc);flex-shrink:0;margin-top:.05rem}
+
+/* ─── HIDDEN ─── */
+.hidden{display:none!important}
+
+/* ─── PRINT ─── */
+@media print{.topnav,.info-box,.ch-chev{display:none!important}body{background:#fff!important;color:#000!important}.card{border:1px solid #ccc!important;background:#fff!important}
+    .card--collapsible.collapsed>.card-body{display:block!important}}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+    <a class="topnav__back" href="index.html"><span class="ms" style="font-size:1.05rem">arrow_back</span> Übersicht</a>
+    <span class="topnav__sep">›</span><span class="topnav__title">Kraft-Coach</span>
+    <span class="topnav__logo">by linzenich</span>
+</nav>
+
+<main class="page">
+
+<!-- ═══════════════════════════════
+     KARTE 1 · EINGABE & ONE REP MAX
+═══════════════════════════════ -->
+<section class="card">
+    <div class="card-head">
+        <span class="ms ch-icon">fitness_center</span>
+        <span class="ch-title">One Rep Max Berechnung</span>
+        <span class="ch-badge">Epley-Formel</span>
+    </div>
+    <div class="card-body">
+
+        <div class="fgrid">
+            <div class="field">
+                <label>Gewicht (kg)</label>
+                <input type="number" id="inp-weight" placeholder="z. B. 100" min="1" max="500" step="0.5"
+                    oninput="calculate()"/>
+            </div>
+            <div class="field">
+                <label>Wiederholungen (bis Versagen)</label>
+                <input type="number" id="inp-reps" placeholder="z. B. 8" min="1" max="30" step="1"
+                    oninput="calculate()"/>
+            </div>
+            <div class="field">
+                <label>Übung <span style="font-weight:300;text-transform:none;letter-spacing:0">(optional)</span></label>
+                <input type="text" id="inp-exercise" placeholder="z. B. Kniebeuge"/>
+            </div>
+        </div>
+
+        <div class="orm-hero" id="orm-hero">
+            <div class="orm-num" id="orm-val">—</div>
+            <div class="orm-unit">kg · One Rep Max</div>
+            <div class="orm-sub" id="orm-sub">Gewicht und Wiederholungen eingeben</div>
+        </div>
+
+        <div class="info-box" style="margin-top:1rem">
+            <span class="ms">info</span>
+            <span><strong>Epley-Formel:</strong> One Rep Max = Gewicht × (1 + Wdh / 30). Immer am echten Muskelversagen testen für maximale Genauigkeit.</span>
+        </div>
+
+    </div>
+</section>
+
+<!-- ═══════════════════════════════
+     KARTE 2 · DEIN IDEALES TRAININGSGEWICHT
+═══════════════════════════════ -->
+<section class="card hidden" id="goal-card">
+    <div class="card-head">
+        <span class="ms ch-icon">target</span>
+        <span class="ch-title">Dein Ideales Trainingsgewicht</span>
+        <span class="ch-badge" id="goal-badge">One Rep Max: — kg</span>
+    </div>
+    <div class="card-body">
+        <p style="font-size:.8rem;color:var(--mut);margin-bottom:1rem">
+            Wähle dein Trainingsziel – der Coach berechnet den passenden Gewichtsbereich.
+        </p>
+
+        <div class="goal-grid">
+
+            <div class="schema-card active" id="gl-muskelaufbau" onclick="selectGoal('muskelaufbau')">
+                <span class="ms sc-icon">exercise</span>
+                <div class="sc-title">Muskelaufbau</div>
+                <div class="sc-sub">Hypertrophie – moderates Gewicht bei mittlerem Volumen.</div>
+                <span class="sc-tag">8–12 Wdh</span>
+            </div>
+
+            <div class="schema-card" id="gl-kraftausdauer" onclick="selectGoal('kraftausdauer')">
+                <span class="ms sc-icon">directions_run</span>
+                <div class="sc-title">Kraftausdauer</div>
+                <div class="sc-sub">Ausdauernde Muskulatur – leichteres Gewicht, hohe Wiederholungen.</div>
+                <span class="sc-tag">10–15 Wdh</span>
+            </div>
+
+            <div class="schema-card" id="gl-kraftaufbau" onclick="selectGoal('kraftaufbau')">
+                <span class="ms sc-icon">fitness_center</span>
+                <div class="sc-title">Kraftaufbau</div>
+                <div class="sc-sub">Maximalkraft – schweres Gewicht bei wenigen Wiederholungen.</div>
+                <span class="sc-tag">3–5 Wdh</span>
+            </div>
+
+        </div>
+
+        <div class="goal-result" id="goal-result"><!-- filled by JS --></div>
+
+        <div class="info-box" style="margin-top:1rem">
+            <span class="ms">info</span>
+            <span>Der Gewichtsbereich wird aus deinem One Rep Max abgeleitet (gerundet auf 2,5&nbsp;kg). Das leichtere Gewicht entspricht der oberen, das schwerere Gewicht der unteren Wiederholungszahl.</span>
+        </div>
+
+    </div>
+</section>
+
+<!-- ═══════════════════════════════
+     KARTE 3 · INTENSITÄTSTABELLE
+═══════════════════════════════ -->
+<section class="card card--collapsible collapsed hidden" id="table-card">
+    <div class="card-head" role="button" tabindex="0" aria-expanded="false" aria-controls="table-body"
+        onclick="toggleCard('table-card')" onkeydown="cardHeadKey(event,'table-card')">
+        <span class="ms ch-icon">percent</span>
+        <span class="ch-title">Intensitätstabelle</span>
+        <span class="ch-badge" id="table-badge">One Rep Max: — kg</span>
+        <span class="ms ch-chev">expand_more</span>
+    </div>
+    <div class="card-body" id="table-body">
+        <p style="font-size:.8rem;color:var(--mut);margin-bottom:.75rem">
+            Alle Gewichte gerundet auf 2,5 kg · Horizontal scrollen für alle Stufen
+        </p>
+        <div class="int-table-wrap">
+            <div class="int-table" id="int-table"><!-- filled by JS --></div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════
+     KARTE 4 · PROGRESSIONSSCHEMA
+═══════════════════════════════ -->
+<section class="card card--collapsible collapsed hidden" id="schema-card">
+    <div class="card-head" role="button" tabindex="0" aria-expanded="false" aria-controls="schema-body"
+        onclick="toggleCard('schema-card')" onkeydown="cardHeadKey(event,'schema-card')">
+        <span class="ms ch-icon">trending_up</span>
+        <span class="ch-title">Progressionsschema</span>
+        <span class="ch-badge">Wochenplan</span>
+        <span class="ms ch-chev">expand_more</span>
+    </div>
+    <div class="card-body" id="schema-body">
+
+        <div class="schema-grid">
+
+            <div class="schema-card active" id="sc-step" onclick="selectSchema('step')">
+                <span class="ms sc-icon">stacked_line_chart</span>
+                <div class="sc-title">Stufen</div>
+                <div class="sc-sub">Blocktraining: kontinuierlicher Aufbau von Stufe zu Stufe – Volumen runter, Intensität hoch.</div>
+                <span class="sc-tag">6 Wochen</span>
+            </div>
+
+            <div class="schema-card" id="sc-wave" onclick="selectSchema('wave')">
+                <span class="ms sc-icon">ssid_chart</span>
+                <div class="sc-title">Wellen</div>
+                <div class="sc-sub">Intensitätswellen mit Auf und Ab – hohe und niedrige Phasen wechseln sich ab.</div>
+                <span class="sc-tag">6 Wochen · 2 Wellen</span>
+            </div>
+
+        </div>
+
+        <div class="sec-sep"><span>Was soll sich verändern?</span></div>
+        <div class="toggle-row">
+            <button class="toggle active" id="tg-weight" onclick="toggleVar('weight')" type="button">
+                <span class="ms">fitness_center</span> Gewicht <span class="tg-state">an</span>
+            </button>
+            <button class="toggle active" id="tg-reps" onclick="toggleVar('reps')" type="button">
+                <span class="ms">repeat</span> Wiederholungen <span class="tg-state">an</span>
+            </button>
+            <button class="toggle active" id="tg-sets" onclick="toggleVar('sets')" type="button">
+                <span class="ms">layers</span> Sätze <span class="tg-state">an</span>
+            </button>
+        </div>
+
+        <!-- Plan output -->
+        <div id="plan-output" style="margin-top:1.5rem"><!-- filled by JS --></div>
+
+    </div>
+</section>
+
+</main>
+
+<script>
+'use strict';
+
+/* ── State ── */
+let orm = 0;
+let currentGoal = 'muskelaufbau';
+let currentSchema = 'step';
+let vary = { weight:true, reps:true, sets:true };
+
+/* ── Intensity table definition ── */
+const INT_LEVELS = [
+    { pct:100, reps:'1',     cls:'col-100' },
+    { pct:97.5,reps:'1–2',   cls:'col-hi'  },
+    { pct:95,  reps:'2',     cls:'col-hi'  },
+    { pct:92.5,reps:'2–3',   cls:'col-hi'  },
+    { pct:90,  reps:'3–4',   cls:'col-hi'  },
+    { pct:87.5,reps:'4–5',   cls:'col-mid' },
+    { pct:85,  reps:'5',     cls:'col-mid' },
+    { pct:82.5,reps:'5–6',   cls:'col-mid' },
+    { pct:80,  reps:'6–7',   cls:'col-mid' },
+    { pct:77.5,reps:'7–8',   cls:'col-lo'  },
+    { pct:75,  reps:'8–9',   cls:'col-lo'  },
+    { pct:72.5,reps:'9–10',  cls:'col-lo'  },
+    { pct:70,  reps:'10–11', cls:'col-lo'  },
+    { pct:67.5,reps:'11–12', cls:'col-base'},
+    { pct:65,  reps:'12–14', cls:'col-base'},
+    { pct:60,  reps:'15–17', cls:'col-base'},
+    { pct:55,  reps:'18–20', cls:'col-base'},
+    { pct:50,  reps:'20+',   cls:'col-base'},
+];
+
+/* ── Goal definitions ── */
+const GOALS = {
+    muskelaufbau:  { name:'Muskelaufbau',  lo:8,  hi:12 },
+    kraftausdauer: { name:'Kraftausdauer', lo:10, hi:15 },
+    kraftaufbau:   { name:'Kraftaufbau',   lo:3,  hi:5  },
+};
+
+/* ── Round to nearest 2.5 ── */
+function round25(kg){ return Math.round(kg / 2.5) * 2.5; }
+
+/* ── Epley One Rep Max ── */
+function calcOrm(w, r){
+    if(r === 1) return w;
+    return w * (1 + r / 30);
+}
+
+/* ── Inverse Epley: Gewicht für n Wiederholungen bei gegebenem One Rep Max ── */
+function weightForReps(o, reps){
+    return o / (1 + reps / 30);
+}
+
+/* ── Main calculate ── */
+function calculate(){
+    const w = parseFloat(document.getElementById('inp-weight').value);
+    const r = parseInt(document.getElementById('inp-reps').value);
+    const valEl = document.getElementById('orm-val');
+    const subEl = document.getElementById('orm-sub');
+
+    if(!w || !r || w<=0 || r<=0){
+        valEl.textContent = '—';
+        subEl.textContent = 'Gewicht und Wiederholungen eingeben';
+        valEl.style.color = 'var(--acc)';
+        orm = 0;
+        document.getElementById('goal-card').classList.add('hidden');
+        document.getElementById('table-card').classList.add('hidden');
+        document.getElementById('schema-card').classList.add('hidden');
+        return;
+    }
+
+    orm = calcOrm(w, r);
+    const ormRounded = round25(orm);
+    valEl.textContent = ormRounded;
+    subEl.textContent = r === 1
+        ? `Einzel-Wiederholung · direktes One Rep Max`
+        : `Epley: ${w} kg × (1 + ${r}/30) = ${orm.toFixed(1)} kg → gerundet ${ormRounded} kg`;
+    valEl.style.color = 'var(--acc)';
+
+    document.getElementById('goal-badge').textContent = `One Rep Max: ${ormRounded} kg`;
+    document.getElementById('table-badge').textContent = `One Rep Max: ${ormRounded} kg`;
+
+    document.getElementById('goal-card').classList.remove('hidden');
+    document.getElementById('table-card').classList.remove('hidden');
+    document.getElementById('schema-card').classList.remove('hidden');
+
+    renderGoal();
+    renderTable();
+    renderPlan();
+}
+
+/* ── Karten auf-/zuklappen (Intensitätstabelle, Progressionsschema) ── */
+function toggleCard(id){
+    const card = document.getElementById(id);
+    const open = card.classList.toggle('collapsed') === false;
+    card.querySelector('.card-head').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function cardHeadKey(e, id){
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+        e.preventDefault();
+        toggleCard(id);
+    }
+}
+
+/* ── Goal selection ── */
+function selectGoal(g){
+    currentGoal = g;
+    Object.keys(GOALS).forEach(id => {
+        document.getElementById(`gl-${id}`).classList.toggle('active', id === g);
+    });
+    renderGoal();
+}
+
+function renderGoal(){
+    if(!orm) return;
+    const g = GOALS[currentGoal];
+    const light = round25(weightForReps(orm, g.hi));  // mehr Wdh → leichter
+    const heavy = round25(weightForReps(orm, g.lo));   // weniger Wdh → schwerer
+    const out = document.getElementById('goal-result');
+    out.innerHTML = `
+        <div class="gr-label">Ideales Trainingsgewicht · ${g.name}</div>
+        <div class="gr-num">${light}<span class="gr-dash">–</span>${heavy}</div>
+        <div class="gr-unit">kg pro Satz</div>
+        <div class="gr-reps">für ${g.lo}–${g.hi} Wiederholungen</div>
+    `;
+}
+
+/* ── Render intensity table ── */
+function renderTable(){
+    const wrap = document.getElementById('int-table');
+    wrap.innerHTML = '';
+    INT_LEVELS.forEach(lvl => {
+        const kg = round25(orm * lvl.pct / 100);
+        const col = document.createElement('div');
+        col.className = `int-col ${lvl.cls}`;
+        col.innerHTML = `
+            <div class="ic-pct">${lvl.pct}%</div>
+            <div class="ic-kg">${kg}</div>
+            <div class="ic-kgu">kg</div>
+            <div class="ic-reps">~${lvl.reps} Wdh</div>
+        `;
+        wrap.appendChild(col);
+    });
+}
+
+/* ── Schema selection ── */
+function selectSchema(s){
+    currentSchema = s;
+    ['step','wave'].forEach(id => {
+        document.getElementById(`sc-${id}`).classList.toggle('active', id === s);
+    });
+    renderPlan();
+}
+
+/* ── Toggle a variable (weight/reps/sets) ── */
+function toggleVar(v){
+    vary[v] = !vary[v];
+    const btn = document.getElementById(`tg-${v}`);
+    btn.classList.toggle('active', vary[v]);
+    btn.querySelector('.tg-state').textContent = vary[v] ? 'an' : 'aus';
+    renderPlan();
+}
+
+/* ── Plan definitions ── */
+function getStepPlan(){
+    return {
+        name:'Stufenschema',
+        desc:'Kontinuierlicher Aufbau von Stufe zu Stufe: Das Volumen sinkt, während die Intensität Woche für Woche steigt.',
+        weeks:[
+            {n:1, pct:70,   sets:4, reps:8, phase:'Aufbau',        phCls:'ph-aufbau',     wkCls:'wk-a'},
+            {n:2, pct:72.5, sets:4, reps:8, phase:'Aufbau',        phCls:'ph-aufbau',     wkCls:'wk-a'},
+            {n:3, pct:75,   sets:4, reps:6, phase:'Steigerung',    phCls:'ph-steigerung', wkCls:'wk-o'},
+            {n:4, pct:77.5, sets:4, reps:6, phase:'Steigerung',    phCls:'ph-steigerung', wkCls:'wk-o'},
+            {n:5, pct:80,   sets:3, reps:5, phase:'Intensivierung',phCls:'ph-intensiv',   wkCls:'wk-r'},
+            {n:6, pct:82.5, sets:3, reps:4, phase:'Intensivierung',phCls:'ph-intensiv',   wkCls:'wk-r'},
+        ]
+    };
+}
+
+function getWavePlan(){
+    return {
+        name:'Wellenschema',
+        desc:'Zwei aufsteigende Intensitätswellen. Jede Welle steigt von Volumen zu Intensität, Welle 2 startet höher als Welle 1.',
+        weeks:[
+            {n:1, pct:70,   sets:4, reps:8, phase:'Welle 1 – Volumen', phCls:'ph-welle',      wkCls:'wk-b', block:'Welle 1'},
+            {n:2, pct:78,   sets:4, reps:5, phase:'Welle 1 – Aufbau',  phCls:'ph-steigerung', wkCls:'wk-o', block:'Welle 1'},
+            {n:3, pct:85,   sets:3, reps:3, phase:'Welle 1 – Peak',    phCls:'ph-peak',       wkCls:'wk-g', block:'Welle 1'},
+            {n:4, pct:72.5, sets:4, reps:8, phase:'Welle 2 – Volumen', phCls:'ph-welle',      wkCls:'wk-b', block:'Welle 2'},
+            {n:5, pct:80,   sets:4, reps:5, phase:'Welle 2 – Aufbau',  phCls:'ph-steigerung', wkCls:'wk-o', block:'Welle 2'},
+            {n:6, pct:87.5, sets:3, reps:3, phase:'Welle 2 – Peak',    phCls:'ph-peak',       wkCls:'wk-g', block:'Welle 2'},
+        ]
+    };
+}
+
+/* ── Apply toggles: fix a variable to its week-1 baseline if disabled ── */
+function applyVary(weeks){
+    const base = weeks[0];
+    return weeks.map(w => ({
+        ...w,
+        pct:  vary.weight ? w.pct  : base.pct,
+        reps: vary.reps   ? w.reps : base.reps,
+        sets: vary.sets   ? w.sets : base.sets,
+    }));
+}
+
+/* ── Render plan ── */
+function renderPlan(){
+    if(!orm) return;
+    const planFns = { step:getStepPlan, wave:getWavePlan };
+    const plan = planFns[currentSchema]();
+    const weeks = applyVary(plan.weeks);
+    const out = document.getElementById('plan-output');
+
+    const held = [];
+    if(!vary.weight) held.push('Gewicht');
+    if(!vary.reps)   held.push('Wiederholungen');
+    if(!vary.sets)   held.push('Sätze');
+    const heldNote = held.length
+        ? `<div class="info-box" style="margin-top:.75rem"><span class="ms">lock</span><span>Konstant gehalten: <strong>${held.join(', ')}</strong>. Nur die übrigen Größen verändern sich über die Wochen.</span></div>`
+        : '';
+
+    let html = `
+        <div class="plan-header">
+            <span class="plan-title">${plan.name}</span>
+            <span class="plan-orm-note">Basis: ${round25(orm)} kg One Rep Max</span>
+        </div>
+        <div class="info-box">
+            <span class="ms">info</span>
+            <span>${plan.desc}</span>
+        </div>
+        ${heldNote}
+        <div style="margin-top:1.25rem"></div>
+    `;
+
+    if(currentSchema === 'wave'){
+        const blocks = {};
+        weeks.forEach(w => {
+            const b = w.block || 'Woche';
+            if(!blocks[b]) blocks[b] = [];
+            blocks[b].push(w);
+        });
+        const blockClasses = ['bl-wave1','bl-wave2'];
+        Object.entries(blocks).forEach(([blName, wks], bi) => {
+            html += `<span class="block-label ${blockClasses[bi % blockClasses.length]}">${blName}</span>`;
+            html += `<div class="weeks-grid" style="margin-bottom:1rem">`;
+            wks.forEach(w => { html += buildWeekCard(w, round25(orm * w.pct / 100)); });
+            html += `</div>`;
+        });
+    } else {
+        html += `<div class="weeks-grid">`;
+        weeks.forEach(w => { html += buildWeekCard(w, round25(orm * w.pct / 100)); });
+        html += `</div>`;
+    }
+
+    out.innerHTML = html;
+}
+
+function buildWeekCard(w, kg){
+    return `
+        <div class="week-card ${w.wkCls}">
+            <div class="wk-num">Woche ${w.n}</div>
+            <div class="wk-pct" style="color:${pctColor(w.pct)}">${w.pct}%</div>
+            <div class="wk-kg">${kg} kg</div>
+            <div class="wk-sets">${w.sets} × ${w.reps} Wdh</div>
+            <span class="wk-phase ${w.phCls}">${w.phase}</span>
+        </div>
+    `;
+}
+
+function pctColor(pct){
+    if(pct >= 90) return 'var(--gold)';
+    if(pct >= 82.5) return 'var(--red)';
+    if(pct >= 75)   return 'var(--orange)';
+    return 'var(--acc)';
+}
+
+/* ── Init ── */
+document.addEventListener('DOMContentLoaded', () => {
+    selectGoal('muskelaufbau');
+    selectSchema('step');
+});
+</script>
+</body>
+</html>
