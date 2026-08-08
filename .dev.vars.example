@@ -1,0 +1,17 @@
+# Vorlage für lokale Tests (npm run dev).
+#
+# So benutzt Du sie:
+#   1. Diese Datei kopieren und in ".dev.vars" umbenennen
+#   2. Eigene Werte eintragen
+#
+# ".dev.vars" ist über .gitignore ausgeschlossen und landet nicht im
+# Repository. Für die veröffentlichte Seite gelten diese Werte NICHT –
+# dort werden die Geheimnisse mit "npx wrangler secret put ..." gesetzt.
+
+# Das Passwort, das die Mitarbeitenden eingeben.
+APP_PASSWORD="nur-zum-lokalen-testen"
+
+# Zufälliger Schlüssel zum Signieren der Sitzungen und QR-Links.
+# Für die Live-Seite unbedingt einen langen Zufallswert erzeugen, z. B. mit:
+#   node -e "console.log(crypto.randomUUID() + crypto.randomUUID())"
+SESSION_SECRET="lokaler-test-schluessel-bitte-ersetzen"
