@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+
+  // Name des Workers. Die Standard-Adresse lautet danach
+  // https://trainer-assistent.<dein-subdomain>.workers.dev
+  "name": "trainer-assistent",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+
+  // Die komplette App liegt in public/ und wird von Cloudflare als
+  // statische Datei ausgeliefert – aber erst, nachdem der Worker die
+  // Anmeldung geprüft hat ("run_worker_first": true).
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none",
+    "run_worker_first": true
+  },
+
+  // Nicht geheime Einstellungen. Geheimnisse (APP_PASSWORD, SESSION_SECRET)
+  // werden NICHT hier eingetragen, sondern mit `wrangler secret put` gesetzt.
+  "vars": {
+    // Wie lange bleibt ein Mitarbeiter angemeldet (Stunden). 720 = 30 Tage.
+    "SESSION_TTL_HOURS": "720",
+    // Vorauswahl für die Gültigkeit eines QR-Codes (Stunden).
+    "SHARE_DEFAULT_TTL_HOURS": "72",
+    // Obergrenze, die im QR-Dialog gewählt werden kann (Stunden). 720 = 30 Tage.
+    "SHARE_MAX_TTL_HOURS": "720"
+  },
+
+  // Bremst Passwort-Rateversuche aus: max. 8 Login-Versuche pro Minute und IP.
+  // namespace_id ist eine frei wählbare Zahl, die im Account eindeutig sein muss.
+  "ratelimits": [
+    {
+      "name": "LOGIN_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 8, "period": 60 }
+    }
+  ],
+
+  "observability": { "enabled": true }
+}
