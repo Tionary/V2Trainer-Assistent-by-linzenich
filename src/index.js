@@ -68,6 +68,13 @@ export default {
     const url = new URL(request.url);
     const config = readConfig(env);
 
+    // Diagnoseseite: zeigt, welche Werte im laufenden Worker ankommen.
+    // Solange die Einrichtung unvollständig ist, ohne Anmeldung erreichbar –
+    // genau dann braucht man sie, und es gibt noch nichts zu schützen.
+    if (url.pathname === '/__status') {
+      return withSecurityHeaders(await handleStatus(request, env, config));
+    }
+
     if (config.error) return withSecurityHeaders(configErrorResponse(config.error));
 
     if (!['GET', 'HEAD', 'POST'].includes(request.method)) {
@@ -298,12 +305,26 @@ function isPubliclyReadable(path) {
 
 /* ──────────────────────────────── Helfer ─────────────────────────────── */
 
+/**
+ * Prüft ein Geheimnis und benennt das Problem genau. Der Unterschied
+ * zwischen "gar nicht da" und "da, aber leer" ist bei der Fehlersuche
+ * entscheidend: Im Dashboard sehen beide Fälle identisch aus
+ * ("Value encrypted"), die Ursachen sind aber völlig verschieden.
+ */
+function inspectSecret(name, value) {
+  if (value === undefined || value === null) return { name, kind: 'fehlt' };
+  if (typeof value !== 'string') return { name, kind: 'kein-text' };
+  if (value.trim() === '') return { name, kind: 'leer' };
+  return null;
+}
+
 function readConfig(env) {
   const appPassword = env.APP_PASSWORD;
   const sessionSecret = env.SESSION_SECRET;
 
-  if (!appPassword) return { error: 'APP_PASSWORD' };
-  if (!sessionSecret) return { error: 'SESSION_SECRET' };
+  const problem =
+    inspectSecret('APP_PASSWORD', appPassword) || inspectSecret('SESSION_SECRET', sessionSecret);
+  if (problem) return { error: problem };
 
   const number = (value, fallback) => {
     const parsed = Number(value);
@@ -319,7 +340,22 @@ function readConfig(env) {
   };
 }
 
-function configErrorResponse(missing) {
+function configErrorResponse(problem) {
+  const { name, kind } = problem;
+
+  const diagnosis =
+    kind === 'leer'
+      ? `<p><strong>Das Geheimnis <code>${name}</code> existiert, ist aber leer.</strong>
+Im Dashboard sieht es dadurch völlig normal aus – es steht „Value encrypted"
+da, obwohl kein Wert hinterlegt ist. Das passiert, wenn beim Anlegen nur der
+Name eingetragen und das Wertfeld leer gelassen (oder der eingefügte Text nicht
+übernommen) wurde.</p>
+<p><strong>Lösung:</strong> <em>Settings → Variables and secrets</em> → bei
+<code>${name}</code> auf <em>Edit</em> → Wert eintragen → <em>Deploy</em>.
+Am besten den Eintrag einmal ganz löschen und neu anlegen.</p>`
+      : `<p>Der laufende Worker kennt das Geheimnis <code>${name}</code> nicht.
+Es ist dort gar nicht angekommen.</p>`;
+
   return htmlResponse(
     `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -327,35 +363,73 @@ function configErrorResponse(missing) {
 <title>Einrichtung unvollständig</title></head><body
 style="font-family:ui-sans-serif,system-ui,sans-serif;max-width:44rem;margin:4rem auto;padding:0 1.5rem;line-height:1.7;color:#1a1a1a">
 <h1 style="font-size:1.35rem">Einrichtung noch nicht abgeschlossen</h1>
-<p>Der laufende Worker sieht das Geheimnis <code>${missing}</code> nicht. Ohne
-dieses Geheimnis startet die App aus Sicherheitsgründen nicht.</p>
+${diagnosis}
 
-<h2 style="font-size:1.05rem;margin-top:2rem">Wenn Du über das Cloudflare-Dashboard arbeitest</h2>
-<p>Steht das Geheimnis dort scheinbar schon drin? Dann liegt es fast immer an
-einem dieser drei Punkte – bitte der Reihe nach prüfen:</p>
+<p style="background:#eef6ff;border-left:4px solid #3b82f6;padding:.9rem 1rem;border-radius:.3rem">
+<strong>Genaue Diagnose:</strong> Öffne
+<a href="/__status"><code>/__status</code></a>. Dort steht, welche Werte im
+laufenden Worker wirklich ankommen – ohne die Geheimnisse selbst preiszugeben.</p>
+
+<h2 style="font-size:1.05rem;margin-top:2rem">Weitere mögliche Ursachen</h2>
 <ol>
-<li><strong>Wurde wirklich gespeichert?</strong> Öffne
-<em>Settings → Variables and secrets</em> und lade die Seite mit F5 neu.
-Verschwindet der Eintrag, war er nur getippt und nicht mit <em>Deploy</em>
-übernommen.</li>
-<li><strong>Steht es am richtigen Ort?</strong> <em>Settings → Variables and
+<li><strong>Falscher Ort im Dashboard.</strong> <em>Settings → Variables and
 secrets</em> ist richtig. <em>Settings → Build → Build variables and secrets</em>
-ist falsch – diese Werte gelten nur beim Bauen und sind hier unsichtbar.</li>
-<li><strong>Gibt es den Worker doppelt?</strong> Prüfe unter
-<em>Compute (Workers)</em>, ob zwei ähnlich benannte Worker existieren. Dann
-liegt das Geheimnis beim einen und der Code beim anderen. Der Name in
-<code>wrangler.jsonc</code> muss exakt dem Worker entsprechen, den Du hier
-aufrufst.</li>
+ist falsch – diese Werte gelten nur beim Bauen und sind zur Laufzeit unsichtbar.</li>
+<li><strong>Nicht übernommen.</strong> Nach dem Eintragen muss unten
+<em>Deploy</em> geklickt werden.</li>
+<li><strong>Worker doppelt vorhanden.</strong> Unter <em>Compute (Workers)</em>
+prüfen. Der Name in <code>wrangler.jsonc</code> muss exakt dem Worker
+entsprechen, den Du hier aufrufst.</li>
 </ol>
 
 <h2 style="font-size:1.05rem;margin-top:2rem">Wenn Du vom eigenen Rechner deployst</h2>
-<pre style="background:#f4f4f4;padding:1rem;border-radius:.5rem;overflow-x:auto"><code>npx wrangler secret put ${missing}</code></pre>
+<pre style="background:#f4f4f4;padding:1rem;border-radius:.5rem;overflow-x:auto"><code>npx wrangler secret put ${name}</code></pre>
 
 <p style="margin-top:2rem;color:#555">Ausführlich in der <code>ANLEITUNG.md</code>,
 Abschnitt 3A (Dashboard) bzw. 3B (eigener Rechner).</p>
 </body></html>`,
     503,
   );
+}
+
+/**
+ * Meldet, was im laufenden Worker ankommt – Namen und Zustand, niemals Werte.
+ * Bewusst so knapp, dass man das Ergebnis abtippen oder weiterschicken kann.
+ */
+async function handleStatus(request, env, config) {
+  const inspect = (value) => ({
+    vorhanden: value !== undefined && value !== null,
+    typ: typeof value,
+    leer: typeof value === 'string' && value.trim() === '',
+    // Ein versehentlich mitkopiertes Leerzeichen oder Zeilenende lässt die
+    // Anmeldung später scheitern, ohne dass man es im Dashboard sieht.
+    randzeichen: typeof value === 'string' && value.length > 0 && value !== value.trim(),
+  });
+
+  // Sobald alles eingerichtet ist, gehört die Seite hinter die Anmeldung.
+  if (!config.error && !(await isSignedIn(request, config))) {
+    return jsonResponse({ hinweis: 'Nur für angemeldete Nutzer.' }, 401);
+  }
+
+  return jsonResponse({
+    einrichtungKomplett: !config.error,
+    problem: config.error ? `${config.error.name} ${config.error.kind}` : null,
+    geheimnisse: {
+      APP_PASSWORD: inspect(env.APP_PASSWORD),
+      SESSION_SECRET: inspect(env.SESSION_SECRET),
+    },
+    variablen: {
+      SESSION_TTL_HOURS: env.SESSION_TTL_HOURS ?? null,
+      SHARE_DEFAULT_TTL_HOURS: env.SHARE_DEFAULT_TTL_HOURS ?? null,
+      SHARE_MAX_TTL_HOURS: env.SHARE_MAX_TTL_HOURS ?? null,
+    },
+    bindings: {
+      ASSETS: Boolean(env.ASSETS),
+      LOGIN_LIMITER: Boolean(env.LOGIN_LIMITER),
+    },
+    // Die entscheidende Zeile: alles, was der Worker an Bindings sieht.
+    alleNamenImWorker: Object.keys(env).sort(),
+  });
 }
 
 /** Verhindert Weiterleitungen auf fremde Seiten (Open Redirect). */

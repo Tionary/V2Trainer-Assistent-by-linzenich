@@ -695,6 +695,42 @@ Kosten entstehen erst, wenn Ihr eine eigene Domain über Cloudflare **kauft**
 wiederholt werden. Er ersetzt jedes Mal die komplette Seite – kaputtmachen
 kannst Du damit nichts.
 
+### Die Diagnoseseite `/__status`
+
+Wenn die Seite behauptet, ein Geheimnis fehle, obwohl es im Dashboard steht,
+hängt Deine Adresse einfach `/__status` an:
+
+```
+https://trainer-assistent-by-linzenich.<subdomain>.workers.dev/__status
+```
+
+Dort steht schwarz auf weiß, was im **laufenden** Worker ankommt:
+
+```json
+{
+  "einrichtungKomplett": false,
+  "problem": "APP_PASSWORD leer",
+  "geheimnisse": {
+    "APP_PASSWORD":   { "vorhanden": true,  "leer": true,  "randzeichen": true },
+    "SESSION_SECRET": { "vorhanden": true,  "leer": false, "randzeichen": false }
+  },
+  "alleNamenImWorker": ["APP_PASSWORD", "ASSETS", "SESSION_SECRET", "..."]
+}
+```
+
+So liest Du das:
+
+| Anzeige | Bedeutung | Was zu tun ist |
+|---|---|---|
+| `"vorhanden": false` | Das Geheimnis kommt beim Worker gar nicht an | Falscher Ort (Build- statt Laufzeit-Variablen), nicht gespeichert, oder falscher Worker |
+| `"leer": true` | Der Eintrag existiert, hat aber keinen Wert | Eintrag löschen und mit Wert neu anlegen |
+| `"randzeichen": true` | Leerzeichen oder Zeilenumbruch am Anfang/Ende | Wert neu einfügen – sonst schlägt später die Anmeldung fehl, obwohl das Passwort „richtig" aussieht |
+| `alleNamenImWorker` | Alles, was der Worker tatsächlich sieht | Fehlt hier ein Name, ist er nie angekommen |
+
+Die Werte selbst zeigt die Seite **nie** an. Solange die Einrichtung
+unvollständig ist, ist sie ohne Anmeldung erreichbar – danach nur noch
+angemeldet.
+
 ---
 
 ## 11. Technischer Anhang
