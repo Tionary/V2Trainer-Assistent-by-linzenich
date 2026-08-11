@@ -306,15 +306,32 @@ function isPubliclyReadable(path) {
 /* ──────────────────────────────── Helfer ─────────────────────────────── */
 
 /**
+ * Sucht Einträge, die fast so heißen wie der gesuchte – also nur in
+ * Groß-/Kleinschreibung, Unterstrichen oder Leerzeichen abweichen.
+ *
+ * Cloudflare unterscheidet Groß- und Kleinschreibung: Ein im Dashboard als
+ * "App_Password" angelegtes Geheimnis erreicht `env.APP_PASSWORD` nicht.
+ * Im Dashboard sieht dabei alles völlig richtig aus.
+ */
+function findSimilarBindingNames(env, wanted) {
+  const normalize = (text) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const target = normalize(wanted);
+  return Object.keys(env).filter((key) => key !== wanted && normalize(key) === target);
+}
+
+/**
  * Prüft ein Geheimnis und benennt das Problem genau. Der Unterschied
  * zwischen "gar nicht da" und "da, aber leer" ist bei der Fehlersuche
  * entscheidend: Im Dashboard sehen beide Fälle identisch aus
  * ("Value encrypted"), die Ursachen sind aber völlig verschieden.
  */
-function inspectSecret(name, value) {
-  if (value === undefined || value === null) return { name, kind: 'fehlt' };
-  if (typeof value !== 'string') return { name, kind: 'kein-text' };
-  if (value.trim() === '') return { name, kind: 'leer' };
+function inspectSecret(env, name) {
+  const value = env[name];
+  if (value === undefined || value === null) {
+    return { name, kind: 'fehlt', aehnlich: findSimilarBindingNames(env, name) };
+  }
+  if (typeof value !== 'string') return { name, kind: 'kein-text', aehnlich: [] };
+  if (value.trim() === '') return { name, kind: 'leer', aehnlich: [] };
   return null;
 }
 
@@ -322,8 +339,7 @@ function readConfig(env) {
   const appPassword = env.APP_PASSWORD;
   const sessionSecret = env.SESSION_SECRET;
 
-  const problem =
-    inspectSecret('APP_PASSWORD', appPassword) || inspectSecret('SESSION_SECRET', sessionSecret);
+  const problem = inspectSecret(env, 'APP_PASSWORD') || inspectSecret(env, 'SESSION_SECRET');
   if (problem) return { error: problem };
 
   const number = (value, fallback) => {
@@ -341,10 +357,27 @@ function readConfig(env) {
 }
 
 function configErrorResponse(problem) {
-  const { name, kind } = problem;
+  const { name, kind, aehnlich = [] } = problem;
+
+  // Häufigster Fall in der Praxis: Der Eintrag existiert, heißt aber
+  // minimal anders geschrieben. Das steht ganz oben, weil man es sonst
+  // stundenlang übersieht.
+  const nearMiss = aehnlich.length
+    ? `<p style="background:#fff4e5;border-left:4px solid #f59e0b;padding:.9rem 1rem;border-radius:.3rem">
+<strong>Das ist mit hoher Wahrscheinlichkeit die Ursache:</strong> Es gibt einen
+Eintrag namens <code>${aehnlich.map((n) => n.replace(/[<>&]/g, '')).join('</code>, <code>')}</code>.
+Gesucht wird aber exakt <code>${name}</code>.</p>
+<p>Cloudflare unterscheidet <strong>Groß- und Kleinschreibung</strong>:
+<code>App_Password</code> und <code>APP_PASSWORD</code> sind zwei verschiedene
+Dinge. Im Dashboard sieht beides gleich richtig aus.</p>
+<p><strong>Lösung:</strong> <em>Settings → Variables and secrets</em> → den
+falsch geschriebenen Eintrag löschen → neu anlegen, Name in Großbuchstaben
+mit Unterstrich: <code>${name}</code> → <em>Deploy</em>.</p>`
+    : '';
 
   const diagnosis =
-    kind === 'leer'
+    nearMiss ||
+    (kind === 'leer'
       ? `<p><strong>Das Geheimnis <code>${name}</code> existiert, ist aber leer.</strong>
 Im Dashboard sieht es dadurch völlig normal aus – es steht „Value encrypted"
 da, obwohl kein Wert hinterlegt ist. Das passiert, wenn beim Anlegen nur der
@@ -354,7 +387,11 @@ Name eingetragen und das Wertfeld leer gelassen (oder der eingefügte Text nicht
 <code>${name}</code> auf <em>Edit</em> → Wert eintragen → <em>Deploy</em>.
 Am besten den Eintrag einmal ganz löschen und neu anlegen.</p>`
       : `<p>Der laufende Worker kennt das Geheimnis <code>${name}</code> nicht.
-Es ist dort gar nicht angekommen.</p>`;
+Es ist dort gar nicht angekommen.</p>
+<p><strong>Achte besonders auf die Schreibweise.</strong> Der Name muss exakt
+<code>${name}</code> lauten – alles groß, mit Unterstrich. Cloudflare
+unterscheidet Groß- und Kleinschreibung, <code>App_Password</code> zählt also
+nicht.</p>`);
 
   return htmlResponse(
     `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"/>
@@ -414,6 +451,9 @@ async function handleStatus(request, env, config) {
   return jsonResponse({
     einrichtungKomplett: !config.error,
     problem: config.error ? `${config.error.name} ${config.error.kind}` : null,
+    // Wenn ein Geheimnis fehlt, es aber einen fast gleich geschriebenen
+    // Eintrag gibt, ist das praktisch immer die Ursache.
+    fastRichtigGeschrieben: config.error?.aehnlich?.length ? config.error.aehnlich : null,
     geheimnisse: {
       APP_PASSWORD: inspect(env.APP_PASSWORD),
       SESSION_SECRET: inspect(env.SESSION_SECRET),

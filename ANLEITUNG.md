@@ -236,6 +236,24 @@ Das Ergebnis sieht ungefähr so aus und muss nirgends gemerkt werden:
 
 4. **Deploy** klicken
 
+> ### ⚠️ Der Name muss exakt stimmen – auch die Großschreibung
+>
+> Cloudflare unterscheidet Groß- und Kleinschreibung. `App_Password`,
+> `app_password` und `APP_PASSWORD` sind **drei verschiedene Einträge**. Der
+> Worker findet nur `APP_PASSWORD`.
+>
+> Im Dashboard sieht ein falsch geschriebener Name völlig unauffällig aus –
+> die Seite meldet trotzdem hartnäckig „Einrichtung noch nicht abgeschlossen".
+> Am sichersten ist Kopieren statt Tippen:
+>
+> ```
+> APP_PASSWORD
+> SESSION_SECRET
+> ```
+>
+> Sollte es doch passieren: `/__status` erkennt fast richtig geschriebene
+> Namen und nennt sie beim Namen.
+
 > **Warum „Secret" und nicht „Text"?** Ein Secret ist nach dem Speichern nicht
 > mehr auslesbar – auch nicht für Dich im Dashboard. Als „Text" stünde das
 > Passwort für jeden sichtbar da, der Zugriff auf das Cloudflare-Konto hat.
@@ -722,6 +740,7 @@ So liest Du das:
 
 | Anzeige | Bedeutung | Was zu tun ist |
 |---|---|---|
+| `"fastRichtigGeschrieben": ["App_Password"]` | Der Eintrag existiert, ist aber anders geschrieben | **Häufigste Ursache.** Löschen und exakt als `APP_PASSWORD` neu anlegen |
 | `"vorhanden": false` | Das Geheimnis kommt beim Worker gar nicht an | Falscher Ort (Build- statt Laufzeit-Variablen), nicht gespeichert, oder falscher Worker |
 | `"leer": true` | Der Eintrag existiert, hat aber keinen Wert | Eintrag löschen und mit Wert neu anlegen |
 | `"randzeichen": true` | Leerzeichen oder Zeilenumbruch am Anfang/Ende | Wert neu einfügen – sonst schlägt später die Anmeldung fehl, obwohl das Passwort „richtig" aussieht |
