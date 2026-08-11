@@ -144,6 +144,24 @@ request"** → **„Confirm merge"**.
 4. GitHub verbinden (Cloudflare fragt nach der Berechtigung) und das
    Repository **`V2Trainer-Assistent-by-linzenich`** auswählen
 
+> ### ⚠️ Der Worker-Name muss zur `wrangler.jsonc` passen
+>
+> Cloudflare schlägt beim Import einen Namen vor. Dieser Name muss **exakt**
+> mit dem Wert `name` in der Datei `wrangler.jsonc` übereinstimmen – dort steht
+> aktuell:
+>
+> ```
+> "name": "trainer-assistent-by-linzenich"
+> ```
+>
+> Stimmen die beiden nicht überein, legt der Deploy einen **zweiten Worker**
+> an. Dann liegt das Passwort beim einen Worker und der Code beim anderen, und
+> die Seite meldet hartnäckig „Einrichtung noch nicht abgeschlossen" – obwohl
+> im Dashboard alles richtig aussieht.
+>
+> Entweder den vorgeschlagenen Namen anpassen oder die Zeile in
+> `wrangler.jsonc` ändern und den Commit auf `main` bringen.
+
 ### Schritt A3 – Die Build-Einstellungen ausfüllen
 
 Das ist der Teil, nach dem Du gefragt hast. Hier die **exakten Werte**:
@@ -659,7 +677,8 @@ Kosten entstehen erst, wenn Ihr eine eigene Domain über Cloudflare **kauft**
 
 | Symptom | Ursache & Lösung |
 |---|---|
-| **„Einrichtung noch nicht abgeschlossen"** im Browser | Ein Geheimnis fehlt. **Häufigste Ursache:** Passwort und Schlüssel stehen unter *Build variables and secrets* statt unter **Settings → Variables & Secrets**. Dort neu anlegen (Typ: **Secret**) → *Deploy*. |
+| **„Einrichtung noch nicht abgeschlossen"** im Browser | Ein Geheimnis fehlt. Die Fehlerseite selbst nennt die drei möglichen Ursachen in der richtigen Prüfreihenfolge – bitte dort entlanghangeln. Am häufigsten: die Werte stehen unter *Build variables and secrets* statt unter **Settings → Variables and secrets**. |
+| **Geheimnis steht im Dashboard, die Seite meckert trotzdem** | Meist ein **Namensunterschied**. Der Wert `name` in `wrangler.jsonc` muss **exakt** so heißen wie der Worker im Dashboard. Sonst legt `wrangler deploy` einen zweiten Worker an: Das Geheimnis liegt beim einen, der Code beim anderen. Unter *Compute (Workers)* nachsehen, ob der Worker doppelt existiert – den überflüssigen löschen. |
 | **Build schlägt fehl: `npm ci` … `package-lock.json`** | Das *Root directory* ist falsch gesetzt. Es muss leer bzw. `/` sein – die `package.json` liegt im Hauptordner. |
 | **Cloudflare baut nicht, obwohl ich etwas hochgeladen habe** | Die Änderung liegt noch in einem Branch/Pull Request. Cloudflare beobachtet nur `main` – den Pull Request also erst mergen. |
 | **Build läuft durch, Seite zeigt trotzdem die alte Version** | Unter Worker → **Builds** nachsehen, ob der letzte Build wirklich grün ist. Danach `Strg + F5` im Browser. |

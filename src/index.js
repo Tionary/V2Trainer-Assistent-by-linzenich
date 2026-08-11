@@ -320,17 +320,39 @@ function readConfig(env) {
 }
 
 function configErrorResponse(missing) {
-  const command = `npx wrangler secret put ${missing}`;
   return htmlResponse(
     `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="robots" content="noindex, nofollow"/>
 <title>Einrichtung unvollständig</title></head><body
-style="font-family:ui-sans-serif,system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1.5rem;line-height:1.7">
-<h1 style="font-size:1.3rem">Einrichtung noch nicht abgeschlossen</h1>
-<p>Das Geheimnis <code>${missing}</code> ist nicht gesetzt. Ohne dieses Geheimnis
-startet die App aus Sicherheitsgründen nicht.</p>
-<p>Bitte im Projektordner ausführen:</p>
-<pre style="background:#f4f4f4;padding:1rem;border-radius:.5rem;overflow-x:auto"><code>${command}</code></pre>
-<p>Details stehen in der <code>ANLEITUNG.md</code>, Schritt 4.</p>
+style="font-family:ui-sans-serif,system-ui,sans-serif;max-width:44rem;margin:4rem auto;padding:0 1.5rem;line-height:1.7;color:#1a1a1a">
+<h1 style="font-size:1.35rem">Einrichtung noch nicht abgeschlossen</h1>
+<p>Der laufende Worker sieht das Geheimnis <code>${missing}</code> nicht. Ohne
+dieses Geheimnis startet die App aus Sicherheitsgründen nicht.</p>
+
+<h2 style="font-size:1.05rem;margin-top:2rem">Wenn Du über das Cloudflare-Dashboard arbeitest</h2>
+<p>Steht das Geheimnis dort scheinbar schon drin? Dann liegt es fast immer an
+einem dieser drei Punkte – bitte der Reihe nach prüfen:</p>
+<ol>
+<li><strong>Wurde wirklich gespeichert?</strong> Öffne
+<em>Settings → Variables and secrets</em> und lade die Seite mit F5 neu.
+Verschwindet der Eintrag, war er nur getippt und nicht mit <em>Deploy</em>
+übernommen.</li>
+<li><strong>Steht es am richtigen Ort?</strong> <em>Settings → Variables and
+secrets</em> ist richtig. <em>Settings → Build → Build variables and secrets</em>
+ist falsch – diese Werte gelten nur beim Bauen und sind hier unsichtbar.</li>
+<li><strong>Gibt es den Worker doppelt?</strong> Prüfe unter
+<em>Compute (Workers)</em>, ob zwei ähnlich benannte Worker existieren. Dann
+liegt das Geheimnis beim einen und der Code beim anderen. Der Name in
+<code>wrangler.jsonc</code> muss exakt dem Worker entsprechen, den Du hier
+aufrufst.</li>
+</ol>
+
+<h2 style="font-size:1.05rem;margin-top:2rem">Wenn Du vom eigenen Rechner deployst</h2>
+<pre style="background:#f4f4f4;padding:1rem;border-radius:.5rem;overflow-x:auto"><code>npx wrangler secret put ${missing}</code></pre>
+
+<p style="margin-top:2rem;color:#555">Ausführlich in der <code>ANLEITUNG.md</code>,
+Abschnitt 3A (Dashboard) bzw. 3B (eigener Rechner).</p>
 </body></html>`,
     503,
   );

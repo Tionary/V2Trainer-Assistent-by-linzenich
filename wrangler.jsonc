@@ -1,9 +1,11 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
 
-  // Name des Workers. Die Standard-Adresse lautet danach
-  // https://trainer-assistent.<dein-subdomain>.workers.dev
-  "name": "trainer-assistent",
+  // Name des Workers. Er MUSS exakt so heißen wie der Worker im
+  // Cloudflare-Dashboard – sonst legt `wrangler deploy` einen zweiten,
+  // leeren Worker an und die Geheimnisse liegen am falschen Ort.
+  // Aktuell: https://trainer-assistent-by-linzenich.<subdomain>.workers.dev
+  "name": "trainer-assistent-by-linzenich",
   "main": "src/index.js",
   "compatibility_date": "2026-08-01",
 
