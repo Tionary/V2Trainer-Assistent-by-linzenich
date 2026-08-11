@@ -14,6 +14,9 @@ Jeder Befehl steht hier zum Kopieren.
 1. [Was am Ende dabei herauskommt](#1-was-am-ende-dabei-herauskommt)
 2. [Vorbereitung](#2-vorbereitung)
 3. [Schritt für Schritt zur Live-Seite](#3-schritt-für-schritt-zur-live-seite)
+   * [Weg A: über GitHub – empfohlen](#3a--weg-a-über-github-empfohlen)
+     *(hier stehen Build command, Advanced settings, Variablen & Secrets)*
+   * [Weg B: vom eigenen Rechner](#3b--weg-b-vom-eigenen-rechner)
 4. [Eigene Adresse statt workers.dev](#4-eigene-adresse-statt-workersdev-optional)
 5. [Der Alltag: QR-Codes für PDFs](#5-der-alltag-qr-codes-für-pdfs)
 6. [Pflege: PDFs, Passwort, Updates](#6-pflege-pdfs-passwort-updates)
@@ -98,6 +101,155 @@ bist Du startklar.
 ---
 
 ## 3. Schritt für Schritt zur Live-Seite
+
+Es gibt zwei Wege. **Du brauchst nur einen davon.**
+
+| | **Weg A: über GitHub** (empfohlen) | **Weg B: vom eigenen Rechner** |
+|---|---|---|
+| Node.js nötig? | nein | ja |
+| Terminal nötig? | nur einmal zum Erzeugen des Schlüssels | ja, immer |
+| Neue PDF hochladen | Datei auf github.com hochladen – fertig | Datei ablegen + `npm run deploy` |
+| Veröffentlichung | passiert automatisch bei jeder Änderung | Du startest sie von Hand |
+
+**Empfehlung: Weg A.** Cloudflare holt sich den Code selbst von GitHub und
+veröffentlicht bei jeder Änderung automatisch neu. Ihr könnt dann später eine
+neue PDF direkt im Browser auf github.com hochladen – ohne Terminal, ohne
+Node.js, ohne diese Anleitung nochmal zu lesen.
+
+→ [Weg A: über GitHub](#3a--weg-a-über-github-empfohlen)
+→ [Weg B: vom eigenen Rechner](#3b--weg-b-vom-eigenen-rechner)
+
+---
+
+## 3A – Weg A: über GitHub (empfohlen)
+
+### Schritt A1 – Den Code nach `main` bringen
+
+Cloudflare beobachtet standardmäßig den Branch `main`. Solange die Änderungen
+noch in einem Pull Request liegen, sind sie dort nicht angekommen.
+
+Öffne also zuerst den Pull Request auf GitHub und klicke **„Merge pull
+request"** → **„Confirm merge"**.
+
+### Schritt A2 – Worker anlegen und Repository verbinden
+
+1. [dash.cloudflare.com](https://dash.cloudflare.com) öffnen
+2. Links **Compute (Workers)** → Button **Create** (oder *Create application*)
+3. Reiter **Import a repository** wählen
+
+   > ⚠️ **Nicht „Pages" wählen.** Dieses Projekt ist ein Worker mit
+   > `wrangler.jsonc`. Über Pages funktioniert der Passwortschutz nicht in
+   > dieser Form.
+
+4. GitHub verbinden (Cloudflare fragt nach der Berechtigung) und das
+   Repository **`V2Trainer-Assistent-by-linzenich`** auswählen
+
+### Schritt A3 – Die Build-Einstellungen ausfüllen
+
+Das ist der Teil, nach dem Du gefragt hast. Hier die **exakten Werte**:
+
+| Feld | Wert | Erklärung |
+|---|---|---|
+| **Git branch** | `main` | Der Branch, den Cloudflare beobachtet |
+| **Build command** | `npm ci && npm run build:manifest` | Installiert die Hilfsprogramme und erzeugt die PDF-Liste neu |
+| **Deploy command** | `npx wrangler deploy` | Der Standardwert – **bitte so lassen** |
+| **Root directory** | leer lassen (bzw. `/`) | Die `wrangler.jsonc` liegt direkt im Hauptordner |
+| **Build variables and secrets** | **nichts eintragen** | Siehe Kasten unten |
+| **API token** | leer lassen | Cloudflare regelt die Anmeldung selbst |
+
+> ### ⚠️ Der wichtigste Punkt der ganzen Seite
+>
+> Es gibt bei Cloudflare **zwei verschiedene Orte** für Variablen, und sie
+> werden ständig verwechselt:
+>
+> * **„Build variables and secrets"** (hier in den Build-Einstellungen)
+>   gelten **nur während des Bauens** und sind für die laufende Seite
+>   **unsichtbar**. → Hier kommt **nichts** rein.
+> * **Settings → Variables & Secrets** (am Worker selbst) sind die Werte, die
+>   die laufende Seite tatsächlich benutzt. → **Dorthin gehören Passwort und
+>   Schlüssel** (Schritt A5).
+>
+> Trägst Du das Passwort an der falschen Stelle ein, zeigt die Seite
+> „Einrichtung noch nicht abgeschlossen" – und Du suchst lange.
+
+**Brauchst Du „Advanced settings"?** Nur insoweit, als *Build command* und
+*Root directory* bei manchen Ansichten hinter diesem Aufklapper liegen. Sonst
+ist dort nichts zu ändern. Alles andere (Kompatibilitätsdatum, Rate-Limit,
+Laufzeiten) steht bereits in der `wrangler.jsonc` im Repository und wird
+automatisch übernommen.
+
+Jetzt auf **Create and deploy** klicken.
+
+> Der erste Build dauert ein bis zwei Minuten. Danach zeigt die Seite
+> **„Einrichtung noch nicht abgeschlossen"** – das ist **richtig so**. Die
+> Geheimnisse fehlen noch, und der Worker startet aus Sicherheitsgründen nicht
+> ohne sie.
+
+### Schritt A4 – Einen Signaturschlüssel erzeugen
+
+Du brauchst eine lange, zufällige Zeichenkette. Nimm eine dieser Möglichkeiten:
+
+* **Ohne alles:** die Adresse
+  [`https://www.uuidgenerator.net/version4`](https://www.uuidgenerator.net/version4)
+  aufrufen und **zwei** der erzeugten Werte hintereinander kopieren.
+* **Mit Terminal** (falls Node.js installiert ist):
+
+  ```bash
+  node -e "console.log(crypto.randomUUID() + crypto.randomUUID())"
+  ```
+
+Das Ergebnis sieht ungefähr so aus und muss nirgends gemerkt werden:
+
+```
+3f9a1c74-8e2b-4d51-9c07-2a6be4d1f883b71e5d02-9a34-4c8f-8e15-77d0c9ab4e26
+```
+
+### Schritt A5 – Passwort und Schlüssel eintragen
+
+1. Im Dashboard auf Deinen Worker `v2trainer-assistent-by-linzenich` (oder wie
+   er heißt) klicken
+2. **Settings** → **Variables & Secrets** → **Add**
+3. Zwei Einträge anlegen – bei beiden als **Typ „Secret"**, *nicht* „Text":
+
+   | Type | Variable name | Value |
+   |---|---|---|
+   | Secret | `APP_PASSWORD` | Euer Team-Passwort, z. B. `Kettlebell-Ahorn-Ruhepuls-74` |
+   | Secret | `SESSION_SECRET` | die lange Zeichenkette aus Schritt A4 |
+
+4. **Deploy** klicken
+
+> **Warum „Secret" und nicht „Text"?** Ein Secret ist nach dem Speichern nicht
+> mehr auslesbar – auch nicht für Dich im Dashboard. Als „Text" stünde das
+> Passwort für jeden sichtbar da, der Zugriff auf das Cloudflare-Konto hat.
+
+Nach dem Speichern ist die Seite sofort scharf. Adresse aufrufen – jetzt kommt
+die Anmeldeseite.
+
+> Die drei Werte `SESSION_TTL_HOURS`, `SHARE_DEFAULT_TTL_HOURS` und
+> `SHARE_MAX_TTL_HOURS` musst Du **nicht** eintragen. Sie stehen in der
+> `wrangler.jsonc` und werden bei jeder Veröffentlichung von dort übernommen –
+> eine Änderung im Dashboard würde beim nächsten Deploy wieder überschrieben.
+> Die beiden **Secrets bleiben dagegen erhalten**, egal wie oft neu
+> veröffentlicht wird.
+
+### Schritt A6 – Prüfen
+
+Weiter mit [Schritt 5 – Prüfen, ob alles sitzt](#schritt-5--prüfen-ob-alles-sitzt).
+
+### Ab jetzt im Alltag
+
+Jede Änderung, die auf `main` landet, wird automatisch veröffentlicht. Eine
+neue PDF bereitstellen geht damit komplett im Browser:
+
+1. Auf github.com in den Ordner `public/dokumente/` gehen
+2. **Add file** → **Upload files** → PDF hineinziehen → **Commit changes**
+3. Zwei Minuten warten – fertig, die PDF steht auf der QR-Code-Seite
+
+Den Fortschritt siehst Du im Dashboard unter Deinem Worker → **Builds**.
+
+---
+
+## 3B – Weg B: vom eigenen Rechner
 
 > **Wichtig:** Alle Befehle werden **im Projektordner** ausgeführt. Wechsle
 > zuerst dorthin, zum Beispiel so:
@@ -264,6 +416,14 @@ erneuern, statt einmalig 30 Tage zu vergeben.
 
 ### 6.1 Eine neue PDF bereitstellen
 
+**Bei Weg A (GitHub)** – komplett im Browser, kein Terminal:
+
+1. Auf github.com in den Ordner `public/dokumente/` gehen
+2. **Add file** → **Upload files** → PDF hineinziehen → **Commit changes**
+3. Fertig. Cloudflare baut und veröffentlicht automatisch (ca. 2 Minuten).
+
+**Bei Weg B (eigener Rechner):**
+
 1. Die Datei in den Ordner `public/dokumente/` legen.
 2. Optional einen schönen Anzeigenamen vergeben – dazu
    `public/dokumente/titel.json` öffnen und ergänzen:
@@ -309,6 +469,11 @@ Wenn Du sie ebenfalls per QR-Code verteilen möchtest:
 3. `npm run deploy`
 
 ### 6.3 Passwort ändern
+
+**Im Dashboard (Weg A):** Worker → **Settings** → **Variables & Secrets** →
+bei `APP_PASSWORD` auf **Edit** → neuen Wert eintragen → **Deploy**.
+
+**Im Terminal (Weg B):**
 
 ```bash
 npx wrangler secret put APP_PASSWORD
@@ -494,7 +659,10 @@ Kosten entstehen erst, wenn Ihr eine eigene Domain über Cloudflare **kauft**
 
 | Symptom | Ursache & Lösung |
 |---|---|
-| **„Einrichtung noch nicht abgeschlossen"** im Browser | Ein Geheimnis fehlt. Schritt 3 wiederholen: `npx wrangler secret put APP_PASSWORD` bzw. `SESSION_SECRET`. |
+| **„Einrichtung noch nicht abgeschlossen"** im Browser | Ein Geheimnis fehlt. **Häufigste Ursache:** Passwort und Schlüssel stehen unter *Build variables and secrets* statt unter **Settings → Variables & Secrets**. Dort neu anlegen (Typ: **Secret**) → *Deploy*. |
+| **Build schlägt fehl: `npm ci` … `package-lock.json`** | Das *Root directory* ist falsch gesetzt. Es muss leer bzw. `/` sein – die `package.json` liegt im Hauptordner. |
+| **Cloudflare baut nicht, obwohl ich etwas hochgeladen habe** | Die Änderung liegt noch in einem Branch/Pull Request. Cloudflare beobachtet nur `main` – den Pull Request also erst mergen. |
+| **Build läuft durch, Seite zeigt trotzdem die alte Version** | Unter Worker → **Builds** nachsehen, ob der letzte Build wirklich grün ist. Danach `Strg + F5` im Browser. |
 | **„Das Passwort stimmt nicht"**, obwohl es stimmt | Beim Setzen ist ein Leerzeichen mitgerutscht. Einfach neu setzen: `npx wrangler secret put APP_PASSWORD`. |
 | **„Zu viele Versuche. Bitte warte eine Minute"** | Schutz gegen Passwort-Raten (8 Versuche pro Minute). Eine Minute warten. Kein Fehler. |
 | **„Dieser Link ist abgelaufen"** beim Scannen | Der QR-Code ist älter als die gewählte Gültigkeit. Neuen Code erzeugen. |
@@ -629,16 +797,30 @@ Vor der Übergabe automatisiert geprüft (lokal, mit echtem Browser):
 ## Kurzfassung zum Ausdrucken
 
 ```
-Einmalig einrichten
+WEG A – über GitHub (empfohlen)
+   Pull Request auf GitHub mergen
+   Cloudflare → Compute (Workers) → Create → Import a repository
+      Git branch      main
+      Build command   npm ci && npm run build:manifest
+      Deploy command  npx wrangler deploy      (Standard, so lassen)
+      Root directory  leer
+      Build variables NICHTS eintragen
+   → Create and deploy
+   Worker → Settings → Variables & Secrets → Add
+      Secret  APP_PASSWORD     = Team-Passwort
+      Secret  SESSION_SECRET   = lange Zufallszeichenkette
+   → Deploy
+
+   Neue PDF: auf github.com nach public/dokumente/ hochladen – fertig
+
+WEG B – vom eigenen Rechner
    npm install
    npx wrangler login
    npx wrangler secret put APP_PASSWORD     ← Team-Passwort
    npx wrangler secret put SESSION_SECRET   ← lange Zufallszeichenkette
    npm run deploy
 
-Neue PDF bereitstellen
-   Datei nach public/dokumente/ legen
-   npm run deploy
+   Neue PDF: Datei nach public/dokumente/ legen, dann npm run deploy
 
 Passwort ändern (meldet alle ab, QR-Codes bleiben gültig)
    npx wrangler secret put APP_PASSWORD
