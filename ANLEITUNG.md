@@ -236,6 +236,26 @@ Das Ergebnis sieht ungefähr so aus und muss nirgends gemerkt werden:
 
 4. **Deploy** klicken
 
+> ### ⚠️ Erst den Typ auf „Secret" stellen, dann tippen
+>
+> Das Feld **Type** steht beim Anlegen auf **Text**. Bleibt es darauf stehen,
+> ist das Passwort **nach dem nächsten Build spurlos verschwunden** – ohne
+> Fehlermeldung, ohne erkennbaren Grund.
+>
+> Der Hintergrund: Klartext-Variablen werden bei jedem Deploy aus der
+> `wrangler.jsonc` heraus neu gesetzt. Was dort nicht steht, wird gelöscht –
+> und das Passwort steht dort natürlich nicht. Echte **Secrets sind davon
+> ausgenommen** und überleben jeden Deploy.
+>
+> Deshalb: **zuerst** den Typ auf *Secret* stellen, **dann** Name und Wert
+> eintragen. Ein nachträglicher Wechsel von *Text* auf *Secret* übernimmt den
+> alten Wert **nicht** – er muss neu eingegeben werden.
+>
+> *(In dieser Konfiguration steht zusätzlich `"keep_vars": true`, wodurch auch
+> versehentlich als Text angelegte Einträge einen Deploy überstehen. Der
+> richtige Typ bleibt trotzdem wichtig: Nur ein Secret ist verschlüsselt und
+> nicht mehr auslesbar.)*
+
 > ### ⚠️ Der Name muss exakt stimmen – auch die Großschreibung
 >
 > Cloudflare unterscheidet Groß- und Kleinschreibung. `App_Password`,
@@ -696,6 +716,7 @@ Kosten entstehen erst, wenn Ihr eine eigene Domain über Cloudflare **kauft**
 | Symptom | Ursache & Lösung |
 |---|---|
 | **„Einrichtung noch nicht abgeschlossen"** im Browser | Ein Geheimnis fehlt. Die Fehlerseite selbst nennt die drei möglichen Ursachen in der richtigen Prüfreihenfolge – bitte dort entlanghangeln. Am häufigsten: die Werte stehen unter *Build variables and secrets* statt unter **Settings → Variables and secrets**. |
+| **Passwort funktionierte kurz und ist nach dem nächsten Build weg** | Es wurde als Typ **Text** statt **Secret** angelegt. Klartext-Variablen werden bei jedem Deploy aus der `wrangler.jsonc` neu gesetzt; was dort nicht steht, verschwindet. Eintrag löschen, Typ **zuerst** auf *Secret* stellen, dann Name und Wert eingeben. |
 | **Geheimnis steht im Dashboard, die Seite meckert trotzdem** | Meist ein **Namensunterschied**. Der Wert `name` in `wrangler.jsonc` muss **exakt** so heißen wie der Worker im Dashboard. Sonst legt `wrangler deploy` einen zweiten Worker an: Das Geheimnis liegt beim einen, der Code beim anderen. Unter *Compute (Workers)* nachsehen, ob der Worker doppelt existiert – den überflüssigen löschen. |
 | **Build schlägt fehl: `npm ci` … `package-lock.json`** | Das *Root directory* ist falsch gesetzt. Es muss leer bzw. `/` sein – die `package.json` liegt im Hauptordner. |
 | **Cloudflare baut nicht, obwohl ich etwas hochgeladen habe** | Die Änderung liegt noch in einem Branch/Pull Request. Cloudflare beobachtet nur `main` – den Pull Request also erst mergen. |

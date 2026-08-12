@@ -388,10 +388,25 @@ Name eingetragen und das Wertfeld leer gelassen (oder der eingefügte Text nicht
 Am besten den Eintrag einmal ganz löschen und neu anlegen.</p>`
       : `<p>Der laufende Worker kennt das Geheimnis <code>${name}</code> nicht.
 Es ist dort gar nicht angekommen.</p>
-<p><strong>Achte besonders auf die Schreibweise.</strong> Der Name muss exakt
-<code>${name}</code> lauten – alles groß, mit Unterstrich. Cloudflare
-unterscheidet Groß- und Kleinschreibung, <code>App_Password</code> zählt also
-nicht.</p>`);
+
+<p style="background:#fff4e5;border-left:4px solid #f59e0b;padding:.9rem 1rem;border-radius:.3rem">
+<strong>Die mit Abstand häufigste Ursache: falscher Typ.</strong> Beim Anlegen
+im Dashboard steht der Typ standardmäßig auf <em>Text</em>. Eine Text-Variable
+wird bei jedem Deploy aus der <code>wrangler.jsonc</code> heraus neu gesetzt –
+und dabei gelöscht, weil das Passwort dort (zu Recht) nicht steht. Es
+funktioniert also kurz und ist nach dem nächsten Build spurlos weg.</p>
+
+<p><strong>Lösung – die Reihenfolge ist wichtig:</strong></p>
+<ol>
+<li>Vorhandenen Eintrag <code>${name}</code> komplett <strong>löschen</strong>.</li>
+<li><em>Add variable</em> → <strong>zuerst</strong> den Typ auf <em>Secret</em>
+stellen, <strong>dann</strong> Name und Wert eintragen. Ein nachträglicher
+Wechsel von <em>Text</em> auf <em>Secret</em> übernimmt den alten Wert nicht.</li>
+<li><em>Deploy</em> klicken.</li>
+</ol>
+
+<p>Achte außerdem auf die Schreibweise: exakt <code>${name}</code>, alles groß,
+mit Unterstrich. Cloudflare unterscheidet Groß- und Kleinschreibung.</p>`);
 
   return htmlResponse(
     `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"/>
