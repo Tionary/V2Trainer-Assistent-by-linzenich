@@ -144,6 +144,24 @@ request"** → **„Confirm merge"**.
 4. GitHub verbinden (Cloudflare fragt nach der Berechtigung) und das
    Repository **`V2Trainer-Assistent-by-linzenich`** auswählen
 
+> ### ⚠️ Der Worker-Name muss zur `wrangler.jsonc` passen
+>
+> Cloudflare schlägt beim Import einen Namen vor. Dieser Name muss **exakt**
+> mit dem Wert `name` in der Datei `wrangler.jsonc` übereinstimmen – dort steht
+> aktuell:
+>
+> ```
+> "name": "trainer-assistent-by-linzenich"
+> ```
+>
+> Stimmen die beiden nicht überein, legt der Deploy einen **zweiten Worker**
+> an. Dann liegt das Passwort beim einen Worker und der Code beim anderen, und
+> die Seite meldet hartnäckig „Einrichtung noch nicht abgeschlossen" – obwohl
+> im Dashboard alles richtig aussieht.
+>
+> Entweder den vorgeschlagenen Namen anpassen oder die Zeile in
+> `wrangler.jsonc` ändern und den Commit auf `main` bringen.
+
 ### Schritt A3 – Die Build-Einstellungen ausfüllen
 
 Das ist der Teil, nach dem Du gefragt hast. Hier die **exakten Werte**:
@@ -217,6 +235,44 @@ Das Ergebnis sieht ungefähr so aus und muss nirgends gemerkt werden:
    | Secret | `SESSION_SECRET` | die lange Zeichenkette aus Schritt A4 |
 
 4. **Deploy** klicken
+
+> ### ⚠️ Erst den Typ auf „Secret" stellen, dann tippen
+>
+> Das Feld **Type** steht beim Anlegen auf **Text**. Bleibt es darauf stehen,
+> ist das Passwort **nach dem nächsten Build spurlos verschwunden** – ohne
+> Fehlermeldung, ohne erkennbaren Grund.
+>
+> Der Hintergrund: Klartext-Variablen werden bei jedem Deploy aus der
+> `wrangler.jsonc` heraus neu gesetzt. Was dort nicht steht, wird gelöscht –
+> und das Passwort steht dort natürlich nicht. Echte **Secrets sind davon
+> ausgenommen** und überleben jeden Deploy.
+>
+> Deshalb: **zuerst** den Typ auf *Secret* stellen, **dann** Name und Wert
+> eintragen. Ein nachträglicher Wechsel von *Text* auf *Secret* übernimmt den
+> alten Wert **nicht** – er muss neu eingegeben werden.
+>
+> *(In dieser Konfiguration steht zusätzlich `"keep_vars": true`, wodurch auch
+> versehentlich als Text angelegte Einträge einen Deploy überstehen. Der
+> richtige Typ bleibt trotzdem wichtig: Nur ein Secret ist verschlüsselt und
+> nicht mehr auslesbar.)*
+
+> ### ⚠️ Der Name muss exakt stimmen – auch die Großschreibung
+>
+> Cloudflare unterscheidet Groß- und Kleinschreibung. `App_Password`,
+> `app_password` und `APP_PASSWORD` sind **drei verschiedene Einträge**. Der
+> Worker findet nur `APP_PASSWORD`.
+>
+> Im Dashboard sieht ein falsch geschriebener Name völlig unauffällig aus –
+> die Seite meldet trotzdem hartnäckig „Einrichtung noch nicht abgeschlossen".
+> Am sichersten ist Kopieren statt Tippen:
+>
+> ```
+> APP_PASSWORD
+> SESSION_SECRET
+> ```
+>
+> Sollte es doch passieren: `/__status` erkennt fast richtig geschriebene
+> Namen und nennt sie beim Namen.
 
 > **Warum „Secret" und nicht „Text"?** Ein Secret ist nach dem Speichern nicht
 > mehr auslesbar – auch nicht für Dich im Dashboard. Als „Text" stünde das
@@ -659,7 +715,9 @@ Kosten entstehen erst, wenn Ihr eine eigene Domain über Cloudflare **kauft**
 
 | Symptom | Ursache & Lösung |
 |---|---|
-| **„Einrichtung noch nicht abgeschlossen"** im Browser | Ein Geheimnis fehlt. **Häufigste Ursache:** Passwort und Schlüssel stehen unter *Build variables and secrets* statt unter **Settings → Variables & Secrets**. Dort neu anlegen (Typ: **Secret**) → *Deploy*. |
+| **„Einrichtung noch nicht abgeschlossen"** im Browser | Ein Geheimnis fehlt. Die Fehlerseite selbst nennt die drei möglichen Ursachen in der richtigen Prüfreihenfolge – bitte dort entlanghangeln. Am häufigsten: die Werte stehen unter *Build variables and secrets* statt unter **Settings → Variables and secrets**. |
+| **Passwort funktionierte kurz und ist nach dem nächsten Build weg** | Es wurde als Typ **Text** statt **Secret** angelegt. Klartext-Variablen werden bei jedem Deploy aus der `wrangler.jsonc` neu gesetzt; was dort nicht steht, verschwindet. Eintrag löschen, Typ **zuerst** auf *Secret* stellen, dann Name und Wert eingeben. |
+| **Geheimnis steht im Dashboard, die Seite meckert trotzdem** | Meist ein **Namensunterschied**. Der Wert `name` in `wrangler.jsonc` muss **exakt** so heißen wie der Worker im Dashboard. Sonst legt `wrangler deploy` einen zweiten Worker an: Das Geheimnis liegt beim einen, der Code beim anderen. Unter *Compute (Workers)* nachsehen, ob der Worker doppelt existiert – den überflüssigen löschen. |
 | **Build schlägt fehl: `npm ci` … `package-lock.json`** | Das *Root directory* ist falsch gesetzt. Es muss leer bzw. `/` sein – die `package.json` liegt im Hauptordner. |
 | **Cloudflare baut nicht, obwohl ich etwas hochgeladen habe** | Die Änderung liegt noch in einem Branch/Pull Request. Cloudflare beobachtet nur `main` – den Pull Request also erst mergen. |
 | **Build läuft durch, Seite zeigt trotzdem die alte Version** | Unter Worker → **Builds** nachsehen, ob der letzte Build wirklich grün ist. Danach `Strg + F5` im Browser. |
@@ -675,6 +733,43 @@ Kosten entstehen erst, wenn Ihr eine eigene Domain über Cloudflare **kauft**
 **Alles zurück auf Anfang:** Der Befehl `npm run deploy` kann beliebig oft
 wiederholt werden. Er ersetzt jedes Mal die komplette Seite – kaputtmachen
 kannst Du damit nichts.
+
+### Die Diagnoseseite `/__status`
+
+Wenn die Seite behauptet, ein Geheimnis fehle, obwohl es im Dashboard steht,
+hängt Deine Adresse einfach `/__status` an:
+
+```
+https://trainer-assistent-by-linzenich.<subdomain>.workers.dev/__status
+```
+
+Dort steht schwarz auf weiß, was im **laufenden** Worker ankommt:
+
+```json
+{
+  "einrichtungKomplett": false,
+  "problem": "APP_PASSWORD leer",
+  "geheimnisse": {
+    "APP_PASSWORD":   { "vorhanden": true,  "leer": true,  "randzeichen": true },
+    "SESSION_SECRET": { "vorhanden": true,  "leer": false, "randzeichen": false }
+  },
+  "alleNamenImWorker": ["APP_PASSWORD", "ASSETS", "SESSION_SECRET", "..."]
+}
+```
+
+So liest Du das:
+
+| Anzeige | Bedeutung | Was zu tun ist |
+|---|---|---|
+| `"fastRichtigGeschrieben": ["App_Password"]` | Der Eintrag existiert, ist aber anders geschrieben | **Häufigste Ursache.** Löschen und exakt als `APP_PASSWORD` neu anlegen |
+| `"vorhanden": false` | Das Geheimnis kommt beim Worker gar nicht an | Falscher Ort (Build- statt Laufzeit-Variablen), nicht gespeichert, oder falscher Worker |
+| `"leer": true` | Der Eintrag existiert, hat aber keinen Wert | Eintrag löschen und mit Wert neu anlegen |
+| `"randzeichen": true` | Leerzeichen oder Zeilenumbruch am Anfang/Ende | Wert neu einfügen – sonst schlägt später die Anmeldung fehl, obwohl das Passwort „richtig" aussieht |
+| `alleNamenImWorker` | Alles, was der Worker tatsächlich sieht | Fehlt hier ein Name, ist er nie angekommen |
+
+Die Werte selbst zeigt die Seite **nie** an. Solange die Einrichtung
+unvollständig ist, ist sie ohne Anmeldung erreichbar – danach nur noch
+angemeldet.
 
 ---
 

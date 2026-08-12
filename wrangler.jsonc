@@ -1,9 +1,11 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
 
-  // Name des Workers. Die Standard-Adresse lautet danach
-  // https://trainer-assistent.<dein-subdomain>.workers.dev
-  "name": "trainer-assistent",
+  // Name des Workers. Er MUSS exakt so heißen wie der Worker im
+  // Cloudflare-Dashboard – sonst legt `wrangler deploy` einen zweiten,
+  // leeren Worker an und die Geheimnisse liegen am falschen Ort.
+  // Aktuell: https://trainer-assistent-by-linzenich.<subdomain>.workers.dev
+  "name": "trainer-assistent-by-linzenich",
   "main": "src/index.js",
   "compatibility_date": "2026-08-01",
 
@@ -18,8 +20,18 @@
     "run_worker_first": true
   },
 
+  // WICHTIG: Ohne diese Zeile ist diese Datei die alleinige Wahrheit für alle
+  // Klartext-Variablen. Wrangler löscht dann bei JEDEM Deploy alles, was im
+  // Dashboard eingetragen wurde und hier nicht steht.
+  //
+  // Praktische Folge: Wer im Dashboard ein Passwort anlegt und dabei den
+  // voreingestellten Typ "Text" stehen lässt, verliert es beim nächsten Build
+  // wieder – scheinbar grundlos. Mit "keep_vars" bleiben solche Einträge
+  // erhalten. Echte Secrets sind ohnehin ausgenommen.
+  "keep_vars": true,
+
   // Nicht geheime Einstellungen. Geheimnisse (APP_PASSWORD, SESSION_SECRET)
-  // werden NICHT hier eingetragen, sondern mit `wrangler secret put` gesetzt.
+  // gehören NICHT hierher, sondern in den Secret-Store.
   "vars": {
     // Wie lange bleibt ein Mitarbeiter angemeldet (Stunden). 720 = 30 Tage.
     "SESSION_TTL_HOURS": "720",
