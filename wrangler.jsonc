@@ -41,6 +41,20 @@
     "SHARE_MAX_TTL_HOURS": "720"
   },
 
+  // Befristete Ablage für PDFs, die ein Modul im Browser erzeugt (Trainingsplan,
+  // FMS-Bericht, PWC-Auswertung, Food-Swap-Plan). Ohne sie bleibt der Knopf
+  // "QR-Code" in den Modulen wirkungslos – Herunterladen und Ausdrucken gehen
+  // weiterhin. Einmalig einrichten (Anleitung Abschnitt 5.2):
+  //
+  //   npx wrangler kv namespace create SHARE_STORE
+  //
+  // Der Befehl gibt eine id aus. Diese unten eintragen und die vier Zeilen
+  // entkommentieren – erst dann funktioniert der QR-Knopf.
+  //
+  // "kv_namespaces": [
+  //   { "binding": "SHARE_STORE", "id": "HIER_DIE_AUSGEGEBENE_ID_EINTRAGEN" }
+  // ],
+
   // Bremst Passwort-Rateversuche aus: max. 8 Login-Versuche pro Minute und IP.
   // namespace_id ist eine frei wählbare Zahl, die im Account eindeutig sein muss.
   "ratelimits": [

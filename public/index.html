@@ -59,6 +59,19 @@ body::after{width:480px;height:480px;bottom:-180px;right:-120px;background:radia
 .hero__tagline::before,.hero__tagline::after{content:'';width:34px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}
 .hero__tagline::after{background:linear-gradient(90deg,var(--gold),transparent)}
 
+/* Material Symbols arbeitet mit Ligaturen: Der Browser ersetzt den
+   geschriebenen Namen ("subdirectory_arrow_right") durch das Symbol.
+   Das gelingt nur, wenn der Text unverändert und ungesperrt ankommt.
+   Erbt ein Icon aus seiner Umgebung `text-transform:uppercase` oder ein
+   `letter-spacing`, zerfällt die Ligatur und der Name steht als Wort da.
+   Deshalb setzt jede `.ms` beides ausdrücklich zurück. */
+.ms{
+  font-family:var(--ms);font-style:normal;
+  text-transform:none;letter-spacing:normal;word-break:normal;white-space:nowrap;
+  direction:ltr;font-variant-ligatures:normal;
+  -webkit-font-feature-settings:'liga';font-feature-settings:'liga';
+}
+
 /* ── SECTION LABEL ── */
 .section-eyebrow{display:flex;align-items:center;gap:1rem;width:min(1040px,100%);margin-bottom:1.9rem}
 .section-eyebrow span{

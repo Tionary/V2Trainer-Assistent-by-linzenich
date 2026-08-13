@@ -28,6 +28,11 @@ npm run deploy
 | Beweglichkeit | Functional Movement Screening mit Übungsableitung |
 | Dokumente | PDFs mit befristeten QR-Codes für Teilnehmer |
 
+Jede Auswertung, die ein Modul als PDF erzeugt (Trainingsplan, PWC, FMS,
+Food-Swap-Plan), lässt sich auch als **befristeter QR-Code** weitergeben.
+Dafür ist eine einmalige Einrichtung nötig – siehe
+[ANLEITUNG.md, Abschnitt 5.2](ANLEITUNG.md#5-der-alltag-qr-codes-für-pdfs).
+
 ## Aufbau
 
 * `public/` – die App (wird veröffentlicht)
