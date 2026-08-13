@@ -438,6 +438,8 @@ ist die Adresse erreichbar.
 
 ## 5. Der Alltag: QR-Codes für PDFs
 
+### 5.1 QR-Code für ein hinterlegtes Dokument
+
 So gibst Du einem Teilnehmer eine PDF:
 
 1. Auf der Startseite unten **Dokumente & QR-Codes** öffnen.
@@ -465,6 +467,84 @@ App) und **nur bis zum Ablaufdatum**.
 
 Deshalb: Für ein öffentliches Plakat lieber 7 Tage wählen und den Aushang
 erneuern, statt einmalig 30 Tage zu vergeben.
+
+### 5.2 QR-Code für ein Ergebnis aus einem Modul
+
+Auch die PDFs, die ein Modul **im Termin erzeugt**, kannst Du per QR-Code
+weitergeben – der Teilnehmer hat seinen Plan dann sofort auf dem Handy, ohne
+Drucker und ohne dass jemand eine Adresse abtippt.
+
+Der Knopf **QR-Code** steht überall dort, wo es auch einen PDF-Knopf gibt:
+
+| Modul | Ergebnis |
+|---|---|
+| Cardio-Coach | Pulszonen-Trainingsplan |
+| PWC (Fahrradergometer) | Testauswertung |
+| FMS | Screening-Bericht |
+| Food Swapper | Mein Food-Swap-Plan |
+
+Ablauf: Auswertung erzeugen → **QR-Code** klicken → Gültigkeit wählen →
+scannen lassen, drucken oder den Link kopieren. Die Auswahl der
+Gültigkeitsdauer und die drei Möglichkeiten sind dieselben wie in 5.1.
+
+#### Einmalige Einrichtung (sonst bleibt der Knopf wirkungslos)
+
+In einen QR-Code passen rund 2 KB – eine PDF wiegt das Tausendfache. Der Code
+kann deshalb nur einen **Link** tragen, und der Link braucht etwas, worauf er
+zeigt. Die fertige PDF muss also kurz irgendwo liegen. Dafür ist ein
+Cloudflare-KV-Speicher nötig; er kostet nichts und ist in drei Minuten
+angelegt.
+
+**Weg A (GitHub):**
+
+1. Im Cloudflare-Dashboard links auf **Storage & Databases → KV**.
+2. **Create a namespace**, als Namen z. B. `trainer-assistent-freigaben`
+   eintragen, anlegen. Cloudflare zeigt danach eine **ID** an (eine lange
+   Zeichenfolge). Diese kopieren.
+3. Im GitHub-Repository die Datei `wrangler.jsonc` öffnen, auf den Stift
+   klicken und den auskommentierten Block
+
+   ```jsonc
+   // "kv_namespaces": [
+   //   { "binding": "SHARE_STORE", "id": "HIER_DIE_AUSGEGEBENE_ID_EINTRAGEN" }
+   // ],
+   ```
+
+   ersetzen durch:
+
+   ```jsonc
+   "kv_namespaces": [
+     { "binding": "SHARE_STORE", "id": "die-kopierte-id" }
+   ],
+   ```
+
+4. Speichern (*Commit changes*). Cloudflare veröffentlicht automatisch neu.
+
+**Weg B (eigener Rechner):**
+
+```bash
+npx wrangler kv namespace create SHARE_STORE
+```
+
+Der Befehl gibt eine `id` aus. Diese wie oben in `wrangler.jsonc` eintragen,
+den Block entkommentieren und `npm run deploy` ausführen.
+
+**Prüfen:** `https://<Deine-Adresse>/__status` aufrufen. Unter `bindings` muss
+`"SHARE_STORE": true` stehen. Steht dort `false`, ist der Eintrag noch nicht
+angekommen – meist ein Tippfehler im Namen. Er muss exakt `SHARE_STORE`
+heißen, alles groß.
+
+Solange das nicht eingerichtet ist, erklärt der Dialog das im Klartext.
+**Herunterladen und Ausdrucken funktionieren unabhängig davon** – es fällt
+also nichts aus, es fehlt nur der QR-Weg.
+
+#### Was dabei gespeichert wird
+
+Die PDF liegt genau so lange im KV-Speicher, wie der QR-Code gültig ist
+(24 Stunden bis 30 Tage, Deine Wahl). Danach löscht Cloudflare sie
+automatisch – niemand muss aufräumen. Ein Trainingsplan enthält in der Regel
+Name, Datum und Trainingswerte; wähle deshalb die kürzeste Dauer, die im
+Alltag reicht. Mehr dazu in Abschnitt 8.
 
 ---
 
@@ -631,6 +711,10 @@ Abschnitt 8). Das heißt aber auch: **Es gibt keine zentrale Historie.** Wird da
 Gerät gewechselt oder der Browser-Speicher geleert, sind die Eingaben weg.
 Erzeugte Auswertungen bitte als PDF speichern.
 
+Eine Ausnahme gibt es: Wer für ein Ergebnis einen **QR-Code** erzeugt (5.2),
+schickt genau diese eine fertige PDF befristet in die Ablage bei Cloudflare.
+Die Eingaben selbst bleiben auch dann auf dem Gerät.
+
 ---
 
 ## 8. Datenschutz
@@ -641,6 +725,7 @@ Erzeugte Auswertungen bitte als PDF speichern.
 |---|---|---|
 | Teilnehmerdaten in den Modulen (Name, Gewicht, Puls, FMS-Werte …) | nur im Browser des Geräts | **Nein** |
 | Erzeugte PDF-Auswertungen | werden im Browser gebaut, landen im Download-Ordner | **Nein** |
+| Erzeugte PDF, für die Du einen **QR-Code** anlegst | befristete Ablage bei Cloudflare (KV), löscht sich nach Ablauf selbst | **Ja** – nur die fertige PDF, nur bis zum Ablaufdatum |
 | Merkliste im Food Swapper, Ansichts-Einstellungen | Browser-Speicher des Geräts | **Nein** |
 | Anmelde-Cookie | Browser des Geräts | enthält nur ein signiertes Ablaufdatum, **keinen Namen, kein Passwort** |
 | Technische Zugriffsprotokolle (IP-Adresse, Zeitpunkt) | Cloudflare | ja – wie bei jedem Webhosting |
@@ -648,6 +733,19 @@ Erzeugte Auswertungen bitte als PDF speichern.
 **Der Kernpunkt:** Die Rechner-Module laufen vollständig im Browser. Es gibt
 keine Datenbank, in der Teilnehmerdaten liegen könnten – auch nicht bei
 Cloudflare. Der Server liefert nur die Dateien aus.
+
+**Die eine Ausnahme:** Erzeugst Du zu einem Ergebnis einen QR-Code, liegt die
+fertige PDF für die gewählte Dauer bei Cloudflare. Sie enthält typischerweise
+Name, Datum und Trainingswerte – also personenbezogene Daten. Deshalb:
+
+* die kürzeste Dauer wählen, die im Alltag reicht (im Termin: 24 Stunden),
+* den Link nur der betroffenen Person geben,
+* für Aushänge am Schwarzen Brett **nie** eine personenbezogene Auswertung
+  verwenden, sondern die allgemeinen Dokumente aus 5.1.
+
+Wer den Link kennt, kann die PDF öffnen – dafür ist er gemacht. Er ist
+allerdings signiert und lang genug, dass er sich nicht erraten lässt, gilt nur
+für diese eine Datei und läuft ab.
 
 ### 8.2 Keine Verbindungen zu Dritten
 
@@ -693,6 +791,8 @@ Der kostenlose Cloudflare-Tarif umfasst (Stand heute):
 * **100.000 Anfragen pro Tag**
 * unbegrenzten Speicher für die statischen Dateien (bis 20.000 Dateien –
   dieses Projekt hat rund 60)
+* für die QR-Ablage (KV): 1 GB Speicher, 1.000 neue Ablagen und 100.000
+  Abrufe pro Tag – ein Studio erzeugt am Tag vielleicht 20
 * HTTPS-Zertifikat inklusive
 * das Rate-Limiting gegen Passwort-Raten inklusive
 
@@ -729,6 +829,7 @@ Kosten entstehen erst, wenn Ihr eine eigene Domain über Cloudflare **kauft**
 | **Nach `npm run deploy` sieht man die alte Version** | Browser-Cache. Seite mit `Strg + F5` (Mac: `Cmd + Shift + R`) neu laden. |
 | **Statt eines Symbols steht ein Wort wie `download` in der App** | Ein Icon fehlt in der Schrift. `npm run check:icons` ausführen – die Ausgabe sagt genau, was zu tun ist. |
 | **PDF taucht nicht in der Liste auf** | Liegt sie wirklich in `public/dokumente/` und endet auf `.pdf`? Danach `npm run deploy` erneut ausführen. |
+| **Der Knopf „QR-Code" in einem Modul meldet, die Ablage fehle** | Die einmalige Einrichtung aus Abschnitt 5.2 steht noch aus. Herunterladen und Ausdrucken funktionieren in der Zwischenzeit normal. |
 
 **Alles zurück auf Anfang:** Der Befehl `npm run deploy` kann beliebig oft
 wiederholt werden. Er ersetzt jedes Mal die komplette Seite – kaputtmachen
@@ -787,6 +888,7 @@ public/              ← alles hier wird veröffentlicht
   fms.html              Functional Movement Screening
   dokumente.html        Dokumente & QR-Codes   ← neu
   dokumente/            die PDFs + manifest.json (automatisch) + titel.json
+  pdf-share.js          QR-Dialog für PDFs, die ein Modul erzeugt
   fonts/                selbst gehostete Schriften  ← neu (DSGVO)
   vendor/               jsPDF, html2canvas, QR-Bibliothek  ← neu (DSGVO)
   fms-img/              Bilder für das FMS-Modul
@@ -805,7 +907,7 @@ scripts/             ← Helfer, laufen auf Deinem Rechner
 
 archiv/              ← alte Einzeldatei-Version, wird NICHT veröffentlicht
 quellen/             ← Logo-Rohdateien, werden NICHT veröffentlicht
-wrangler.jsonc       ← Einstellungen (Laufzeiten, Rate-Limit)
+wrangler.jsonc       ← Einstellungen (Laufzeiten, Rate-Limit, QR-Ablage)
 ```
 
 ### 11.2 Alle Befehle
@@ -821,6 +923,7 @@ wrangler.jsonc       ← Einstellungen (Laufzeiten, Rate-Limit)
 | `npx wrangler secret put APP_PASSWORD` | Team-Passwort setzen/ändern |
 | `npx wrangler secret list` | anzeigen, welche Geheimnisse gesetzt sind |
 | `npx wrangler tail` | Live-Protokoll der Zugriffe ansehen |
+| `npx wrangler kv namespace create SHARE_STORE` | Ablage für die QR-Codes anlegen (einmalig, siehe 5.2) |
 
 ### 11.3 Einstellungen in `wrangler.jsonc`
 
@@ -830,6 +933,7 @@ wrangler.jsonc       ← Einstellungen (Laufzeiten, Rate-Limit)
 | `SHARE_DEFAULT_TTL_HOURS` | `72` (3 Tage) | Vorauswahl im QR-Dialog |
 | `SHARE_MAX_TTL_HOURS` | `720` (30 Tage) | Obergrenze, die wählbar ist |
 | `ratelimits` → `limit` | `8` | erlaubte Anmeldeversuche pro Minute und IP |
+| `kv_namespaces` → `SHARE_STORE` | *(nicht gesetzt)* | Ablage für PDFs, die ein Modul erzeugt – ohne sie bleibt der QR-Knopf in den Modulen wirkungslos (siehe 5.2) |
 
 Nach Änderungen: `npm run deploy`.
 
@@ -880,6 +984,13 @@ Vor der Übergabe automatisiert geprüft (lokal, mit echtem Browser):
 * Manipulierte, erfundene und abgelaufene QR-Token werden abgelehnt.
 * Versuche, per Freigabe-Schnittstelle andere Dateien zu erreichen
   (`../index.html`, Nicht-PDFs, nicht existierende Dateien), scheitern.
+* QR-Codes für erzeugte Auswertungen: Ein echter Trainingsplan (420 KB) wurde
+  im Browser erzeugt, hochgeladen und über den QR-Link **ohne Anmeldung** mit
+  richtigem Dateinamen wieder ausgeliefert. Uploads ohne Anmeldung, von
+  fremder Herkunft, ohne Inhalt oder mit Nicht-PDF-Inhalt werden abgewiesen;
+  ein Dateiname mit Pfad- und Anführungszeichen wird entschärft.
+* Ist die Ablage noch nicht eingerichtet, erklärt der Dialog das im Klartext
+  und „Herunterladen" bleibt nutzbar.
 * CSRF-Versuch von fremder Herkunft → abgewiesen; Weiterleitung auf eine
   fremde Domain → abgewiesen; überhöhte Gültigkeitsdauer → auf 30 Tage gekürzt.
 * Passwortwechsel meldet bestehende Sitzungen ab, lässt QR-Codes aber gültig.

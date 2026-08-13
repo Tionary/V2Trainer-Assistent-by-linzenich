@@ -56,7 +56,13 @@
         box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 0 0 1px rgba(175,143,97,.18);
         transition: color 0.2s,box-shadow .2s,transform .2s; }
     .topnav__back:hover { color: var(--text); transform:translateX(-2px); box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 0 0 1px rgba(175,143,97,.4); }
-    .ms { font-family: var(--ms); font-style: normal; font-variation-settings: 'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24; line-height: 1; }
+    /* Material Symbols arbeitet mit Ligaturen: Der Browser ersetzt den geschriebenen
+       Namen durch das Symbol. Erbt ein Icon aus seiner Umgebung `text-transform:
+       uppercase` oder ein `letter-spacing`, zerfällt die Ligatur und der Name steht
+       als Wort da. Deshalb setzt `.ms` beides ausdrücklich zurück. */
+    .ms { font-family: var(--ms); font-style: normal; font-variation-settings: 'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24; line-height: 1;
+          text-transform: none; letter-spacing: normal; word-break: normal; white-space: nowrap; direction: ltr;
+          font-variant-ligatures: normal; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; }
     .topnav__sep { color: rgba(175,143,97,0.5); }
     .topnav__title { font-size: 0.92rem; font-weight: 800; letter-spacing:-.01em; }
     .topnav__sub { font-size: 0.82rem; font-weight: 300; color: var(--muted); }
@@ -615,6 +621,9 @@
                     <span class="ms" style="font-size:1rem">arrow_back</span> Werte bearbeiten
                 </button>
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+                    <button class="btn btn--outline btn--sm" id="btn-qr" onclick="downloadPDF('qr')">
+                        <span class="ms" style="font-size:1rem">qr_code_2</span> <span id="btn-qr-label">QR-Code</span>
+                    </button>
                     <button class="btn btn--primary btn--sm" id="btn-pdf" onclick="downloadPDF()">
                         <span class="ms" style="font-size:1rem">picture_as_pdf</span> <span id="btn-pdf-label">Als PDF exportieren</span>
                     </button>
@@ -708,6 +717,8 @@
 ══════════════════════════════════════════════════════════════ -->
 <script src="vendor/html2canvas.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="pdf-share.js"></script>
 <script>
 'use strict';
 
@@ -1358,14 +1369,20 @@ function buildReportHTML() {
     </div>`;
 }
 
-async function downloadPDF() {
+/**
+ * Erzeugt die PDF-Auswertung.
+ * @param {'download'|'qr'} mode 'qr' zeigt statt des Speichern-Dialogs einen
+ *        QR-Code, mit dem der Kunde die PDF aufs Handy holt.
+ */
+async function downloadPDF(mode) {
     if (!lastResult) { alert('Bitte zuerst die Auswertung berechnen.'); return; }
     if (!window.jspdf || !window.html2canvas) {
         alert('Die PDF-Funktion wird noch geladen (einmalige Internetverbindung nötig). Bitte einen Moment warten und erneut versuchen.');
         return;
     }
-    const btn = $('btn-pdf');
-    const lbl = $('btn-pdf-label');
+    const asQr = mode === 'qr';
+    const btn = $(asQr ? 'btn-qr' : 'btn-pdf');
+    const lbl = $(asQr ? 'btn-qr-label' : 'btn-pdf-label');
     const prev = lbl.textContent;
     btn.disabled = true; btn.style.opacity = '.65'; btn.style.cursor = 'wait'; lbl.textContent = 'Erstelle PDF…';
 
@@ -1386,7 +1403,12 @@ async function downloadPDF() {
         pdf.addImage(img, 'JPEG', (pw - imgW) / 2, 0, imgW, imgH);
         const safeName = (lastResult.name && lastResult.name !== '—' ? lastResult.name : 'PWC').replace(/[^\wäöüÄÖÜß -]/g, '').replace(/\s+/g, '_');
         const safeDate = $('s-datum').value || new Date().toISOString().slice(0, 10);
-        pdf.save(`PWC_${safeName}_${safeDate}.pdf`);
+        const fileName = `PWC_${safeName}_${safeDate}.pdf`;
+        if (asQr) {
+            PdfShare.share({ blob: pdf.output('blob'), filename: fileName, title: 'PWC-Auswertung' });
+        } else {
+            pdf.save(fileName);
+        }
     } catch (err) {
         console.error(err);
         alert('Beim Erstellen des PDF ist ein Fehler aufgetreten. Bitte erneut versuchen.');

@@ -26,7 +26,13 @@ body::before{width:460px;height:460px;top:-160px;left:-140px;background:radial-g
 body::after{width:420px;height:420px;bottom:-170px;right:-120px;background:radial-gradient(circle,rgba(175,143,97,.12),transparent 70%)}
 .topnav{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:.85rem;padding:.9rem 1.5rem;background:linear-gradient(180deg,rgba(13,46,37,.92),rgba(13,46,37,.72));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid rgba(175,143,97,.22);box-shadow:0 6px 22px -12px rgba(0,0,0,.7)}
 .back{display:inline-flex;align-items:center;gap:.4rem;color:var(--mut);font-size:.84rem;font-weight:600;text-decoration:none;padding:.42rem .8rem .42rem .55rem;border-radius:.6rem;background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(0,0,0,.15));box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 0 0 1px rgba(175,143,97,.18);transition:color .2s,box-shadow .2s,transform .2s}.back:hover{color:var(--txt);transform:translateX(-2px);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 0 0 1px rgba(175,143,97,.4)}
-.ms{font-family:var(--ms);font-style:normal;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24;line-height:1}
+/* Material Symbols arbeitet mit Ligaturen: Der Browser ersetzt den geschriebenen
+   Namen durch das Symbol. Erbt ein Icon aus seiner Umgebung `text-transform:
+   uppercase` oder ein `letter-spacing`, zerfällt die Ligatur und der Name steht
+   als Wort da. Deshalb setzt `.ms` beides ausdrücklich zurück. */
+.ms{font-family:var(--ms);font-style:normal;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24;line-height:1;
+  text-transform:none;letter-spacing:normal;word-break:normal;white-space:nowrap;direction:ltr;
+  font-variant-ligatures:normal;-webkit-font-feature-settings:'liga';font-feature-settings:'liga'}
 .topnav .sep{color:rgba(175,143,97,.5)}.topnav .ttl{font-size:.92rem;font-weight:800;letter-spacing:-.01em}.topnav .logo{margin-left:auto;font-family:var(--script);font-size:1.55rem;color:var(--gold-lt)}
 .page{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:1.75rem 1.25rem 4rem;display:flex;flex-direction:column;gap:1.5rem}
 .card{position:relative;background:radial-gradient(ellipse 120% 70% at 80% 0%,rgba(92,184,92,.08),transparent 55%),linear-gradient(158deg,#1c5645 0%,#154a3b 46%,#0f382d 80%,#0c2d24 100%);border:1px solid rgba(175,143,97,.20);border-radius:1.2rem;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 22px 40px -20px rgba(0,0,0,.7),0 6px 14px -8px rgba(0,0,0,.55)}
@@ -219,7 +225,8 @@ body.pro .pro-only{display:block}
 <!-- RESULTS -->
 <section class="card hidden" id="results-card">
     <div class="ch"><span class="ms ic">assessment</span><span class="ht">Ergebnis</span>
-        <button class="btn btn-primary" id="btn-pdf" style="margin-left:auto;padding:.25rem .75rem;font-size:.72rem;gap:.3rem" onclick="downloadPDF()"><span class="ms" style="font-size:.9rem">picture_as_pdf</span><span id="btn-pdf-label">PDF herunterladen</span></button>
+        <button class="btn btn-outline" id="btn-qr" style="margin-left:auto;padding:.25rem .75rem;font-size:.72rem;gap:.3rem" onclick="downloadPDF('qr')"><span class="ms" style="font-size:.9rem">qr_code_2</span><span id="btn-qr-label">QR-Code</span></button>
+        <button class="btn btn-primary" id="btn-pdf" style="padding:.25rem .75rem;font-size:.72rem;gap:.3rem" onclick="downloadPDF()"><span class="ms" style="font-size:.9rem">picture_as_pdf</span><span id="btn-pdf-label">PDF herunterladen</span></button>
     </div>
     <div class="cb">
         <div id="result-header" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem"></div>
@@ -312,6 +319,8 @@ body.pro .pro-only{display:block}
 
 <script src="vendor/html2canvas.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="pdf-share.js"></script>
 <script>
 'use strict';
 
@@ -1277,13 +1286,19 @@ function measureSheet(html, decorate){
   return h;
 }
 
-async function downloadPDF(){
+/**
+ * Erzeugt den FMS-Bericht als PDF.
+ * @param {'download'|'qr'} mode 'qr' zeigt statt des Speichern-Dialogs einen
+ *        QR-Code, mit dem der Kunde den Bericht aufs Handy holt.
+ */
+async function downloadPDF(mode){
   if(!window.jspdf || !window.html2canvas){
     alert('Die PDF-Funktion wird noch geladen (einmalige Internetverbindung nötig). Bitte einen Moment warten und erneut versuchen.');
     return;
   }
-  const btn = document.getElementById('btn-pdf');
-  const lbl = document.getElementById('btn-pdf-label');
+  const asQr = mode === 'qr';
+  const btn = document.getElementById(asQr ? 'btn-qr' : 'btn-pdf');
+  const lbl = document.getElementById(asQr ? 'btn-qr-label' : 'btn-pdf-label');
   const prev = lbl.textContent;
   btn.disabled = true; btn.style.opacity = '.65'; btn.style.cursor = 'wait'; lbl.textContent = 'Erstelle PDF…';
 
@@ -1331,7 +1346,12 @@ async function downloadPDF(){
 
     const safeName = ((document.getElementById('inp-name').value||'FMS').trim()||'FMS').replace(/[^\wäöüÄÖÜß -]/g,'').replace(/\s+/g,'_');
     const safeDate = document.getElementById('inp-date').value || new Date().toISOString().slice(0,10);
-    pdf.save(`FMS_${safeName}_${safeDate}.pdf`);
+    const fileName = `FMS_${safeName}_${safeDate}.pdf`;
+    if(asQr){
+      PdfShare.share({ blob: pdf.output('blob'), filename: fileName, title: 'FMS-Bericht' });
+    } else {
+      pdf.save(fileName);
+    }
   } catch(err){
     console.error(err);
     alert('Beim Erstellen des PDF ist ein Fehler aufgetreten. Bitte erneut versuchen.');

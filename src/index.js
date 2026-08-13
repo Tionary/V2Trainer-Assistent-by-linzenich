@@ -35,6 +35,16 @@ const PUBLIC_PREFIXES = ['/fonts/'];
 /** Nur PDFs aus diesem Ordner dürfen per QR-Code freigegeben werden. */
 const SHARE_ROOT = '/dokumente/';
 
+/**
+ * Präfix im Freigabe-Token für PDFs, die ein Modul im Browser erzeugt hat
+ * (Trainingsplan, FMS-Bericht, PWC-Auswertung, Food-Swap-Plan). Sie liegen
+ * nicht in public/, sondern befristet im KV-Speicher SHARE_STORE.
+ */
+const STORE_PREFIX = 'ablage:';
+
+/** Obergrenze für eine hochgeladene PDF. Ein Bericht wiegt real 0,2–2 MB. */
+const MAX_SHARE_BYTES = 10 * 1024 * 1024;
+
 const SECURITY_HEADERS = {
   'Content-Security-Policy': [
     "default-src 'self'",
@@ -110,6 +120,11 @@ async function route(request, env, url, config) {
   if (path === '/api/share') {
     if (!signedIn) return jsonResponse({ error: 'Nicht angemeldet' }, 401);
     return handleCreateShare(request, env, url, config);
+  }
+
+  if (path === '/api/share-file') {
+    if (!signedIn) return jsonResponse({ error: 'Nicht angemeldet' }, 401);
+    return handleUploadShare(request, env, url, config);
   }
 
   if (!signedIn && !isPubliclyReadable(path)) return requireLogin(request, url);
@@ -204,10 +219,7 @@ async function handleCreateShare(request, env, url, config) {
   const probe = await env.ASSETS.fetch(new Request(new URL(file, url.origin), { method: 'GET' }));
   if (!probe.ok) return jsonResponse({ error: 'Diese Datei gibt es nicht.' }, 404);
 
-  const requested = Number(body?.ttlHours ?? config.shareDefaultTtlHours);
-  const ttlHours = Number.isFinite(requested)
-    ? Math.min(Math.max(requested, 1), config.shareMaxTtlHours)
-    : config.shareDefaultTtlHours;
+  const ttlHours = clampTtl(body?.ttlHours, config);
 
   const { token, expiresAt } = await createShareToken(config.sessionSecret, file, ttlHours);
 
@@ -218,11 +230,101 @@ async function handleCreateShare(request, env, url, config) {
   });
 }
 
+/**
+ * Nimmt eine PDF entgegen, die ein Modul gerade im Browser erzeugt hat, legt
+ * sie befristet ab und gibt den QR-Link zurück.
+ *
+ * Warum überhaupt eine Ablage? Ein QR-Code fasst rund 2 KB – eine PDF wiegt
+ * das Tausendfache. Der Code kann also nur einen Link tragen, und der Link
+ * braucht etwas, worauf er zeigt. Der Eintrag löscht sich nach Ablauf der
+ * gewählten Gültigkeit von selbst; niemand muss aufräumen.
+ */
+async function handleUploadShare(request, env, url, config) {
+  if (request.method !== 'POST') return jsonResponse({ error: 'Nur POST' }, 405);
+
+  if (!env.SHARE_STORE) {
+    return jsonResponse(
+      {
+        error:
+          'Die Ablage für erzeugte PDFs ist noch nicht eingerichtet. ' +
+          'Ein einmaliger Schritt: In Cloudflare unter „Storage & Databases → KV" ' +
+          'einen Namespace anlegen und ihn in wrangler.jsonc als SHARE_STORE ' +
+          'eintragen. Die Anleitung beschreibt das in Abschnitt 5.2. ' +
+          'Herunterladen und Ausdrucken funktioniert unabhängig davon.',
+        code: 'ablage-fehlt',
+      },
+      503,
+    );
+  }
+
+  const body = await request.arrayBuffer();
+  if (body.byteLength === 0) return jsonResponse({ error: 'Es kam keine Datei an.' }, 400);
+  if (body.byteLength > MAX_SHARE_BYTES) {
+    return jsonResponse({ error: 'Diese PDF ist zu groß für einen QR-Code-Link.' }, 413);
+  }
+
+  // Nur echte PDFs – erkennbar an den ersten fünf Zeichen "%PDF-".
+  const head = new TextDecoder('latin1').decode(new Uint8Array(body, 0, 5));
+  if (head !== '%PDF-') return jsonResponse({ error: 'Das ist keine PDF-Datei.' }, 415);
+
+  const name = safeFileName(url.searchParams.get('name'));
+  const ttlHours = clampTtl(url.searchParams.get('ttlHours'), config);
+
+  const id = crypto.randomUUID().replace(/-/g, '');
+  await env.SHARE_STORE.put(id, body, {
+    // Cloudflare räumt den Eintrag exakt dann weg, wenn der QR-Code abläuft.
+    expirationTtl: Math.max(60, Math.round(ttlHours * 3600)),
+    metadata: { name },
+  });
+
+  const { token, expiresAt } = await createShareToken(
+    config.sessionSecret,
+    `${STORE_PREFIX}${id}`,
+    ttlHours,
+  );
+
+  return jsonResponse({
+    url: `${url.origin}/s/${token}`,
+    expiresAt: new Date(expiresAt * 1000).toISOString(),
+    ttlHours,
+  });
+}
+
+/** Hält die gewünschte Gültigkeit innerhalb der erlaubten Spanne. */
+function clampTtl(value, config) {
+  const requested = Number(value ?? config.shareDefaultTtlHours);
+  if (!Number.isFinite(requested)) return config.shareDefaultTtlHours;
+  return Math.min(Math.max(requested, 1), config.shareMaxTtlHours);
+}
+
+/**
+ * Macht aus einem beliebigen Vorschlag einen Dateinamen, der gefahrlos in
+ * einen Content-Disposition-Header passt – keine Anführungszeichen, keine
+ * Zeilenumbrüche, keine Pfadtrenner.
+ */
+function safeFileName(value) {
+  const raw = typeof value === 'string' ? value : '';
+  const cleaned = raw
+    .replace(/[\\/\r\n"]/g, '')
+    .replace(/[^\w äöüÄÖÜß.()+-]/g, '')
+    .trim()
+    .slice(0, 120);
+  if (!cleaned || !/\.pdf$/i.test(cleaned)) return 'Bericht.pdf';
+  return cleaned;
+}
+
 async function handleShareLink(request, env, url, config) {
   const token = url.pathname.slice('/s/'.length);
   const file = await verifyShareToken(config.sessionSecret, token);
 
-  if (!file || !normalizeSharePath(file)) return htmlResponse(renderShareExpiredPage(), 410);
+  if (!file) return htmlResponse(renderShareExpiredPage(), 410);
+
+  // Im Browser erzeugte PDF: liegt in der befristeten Ablage.
+  if (file.startsWith(STORE_PREFIX)) {
+    return serveStoredShare(request, env, file.slice(STORE_PREFIX.length));
+  }
+
+  if (!normalizeSharePath(file)) return htmlResponse(renderShareExpiredPage(), 410);
 
   const upstream = await env.ASSETS.fetch(
     new Request(new URL(file, url.origin), {
@@ -238,6 +340,27 @@ async function handleShareLink(request, env, url, config) {
   response.headers.set('Content-Disposition', `inline; filename="${name}"`);
   response.headers.set('Cache-Control', 'private, no-store');
   return response;
+}
+
+/** Liefert eine PDF aus der befristeten Ablage aus. */
+async function serveStoredShare(request, env, id) {
+  if (!env.SHARE_STORE || !/^[0-9a-f]{32}$/.test(id)) {
+    return htmlResponse(renderShareExpiredPage(), 410);
+  }
+
+  const stored = await env.SHARE_STORE.getWithMetadata(id, { type: 'arrayBuffer' });
+  // Kein Eintrag mehr: abgelaufen und von Cloudflare gelöscht.
+  if (!stored?.value) return htmlResponse(renderShareExpiredPage(), 410);
+
+  const name = safeFileName(stored.metadata?.name);
+  return new Response(request.method === 'HEAD' ? null : stored.value, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Length': String(stored.value.byteLength),
+      'Content-Disposition': `inline; filename="${name}"`,
+      'Cache-Control': 'private, no-store',
+    },
+  });
 }
 
 /**
@@ -481,6 +604,9 @@ async function handleStatus(request, env, config) {
     bindings: {
       ASSETS: Boolean(env.ASSETS),
       LOGIN_LIMITER: Boolean(env.LOGIN_LIMITER),
+      // Ohne SHARE_STORE bleibt der QR-Knopf in den Modulen wirkungslos –
+      // Herunterladen und Ausdrucken funktionieren aber weiterhin.
+      SHARE_STORE: Boolean(env.SHARE_STORE),
     },
     // Die entscheidende Zeile: alles, was der Worker an Bindings sieht.
     alleNamenImWorker: Object.keys(env).sort(),
