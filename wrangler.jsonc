@@ -51,9 +51,9 @@
   // Der Befehl gibt eine id aus. Diese unten eintragen und die vier Zeilen
   // entkommentieren – erst dann funktioniert der QR-Knopf.
   //
-  // "kv_namespaces": [
-  //   { "binding": "SHARE_STORE", "id": "HIER_DIE_AUSGEGEBENE_ID_EINTRAGEN" }
-  // ],
+   "kv_namespaces": [
+     { "binding": "SHARE_STORE", "id": "f3d1b5bbca3f4777b67d9c1a82dfabd4" }
+   ],
 
   // Bremst Passwort-Rateversuche aus: max. 8 Login-Versuche pro Minute und IP.
   // namespace_id ist eine frei wählbare Zahl, die im Account eindeutig sein muss.
