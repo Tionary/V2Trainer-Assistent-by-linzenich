@@ -1,0 +1,28 @@
+{
+  "id": "/",
+  "name": "Trainer-Assistent by linzenich",
+  "short_name": "Trainer-Assistent",
+  "description": "Ernährung, Kraft, Ausdauer und Beweglichkeit – die Trainer-Werkzeuge der Linzenich Gruppe.",
+  "lang": "de",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0a261f",
+  "theme_color": "#0a261f",
+  "icons": [
+    { "src": "/icons/app-icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/icons/icon-48.png", "type": "image/png", "sizes": "48x48" },
+    { "src": "/icons/icon-64.png", "type": "image/png", "sizes": "64x64" },
+    { "src": "/icons/icon-96.png", "type": "image/png", "sizes": "96x96" },
+    { "src": "/icons/icon-128.png", "type": "image/png", "sizes": "128x128" },
+    { "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icons/icon-256.png", "type": "image/png", "sizes": "256x256" },
+    { "src": "/icons/icon-384.png", "type": "image/png", "sizes": "384x384" },
+    { "src": "/icons/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "/icons/maskable-192.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}

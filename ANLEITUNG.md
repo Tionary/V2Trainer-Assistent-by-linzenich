@@ -651,6 +651,40 @@ npm run dev
 Die Seite läuft nun unter `http://localhost:8787` auf Deinem eigenen Rechner –
 sichtbar nur für Dich. Beenden mit `Strg + C`.
 
+### 6.6 Die App auf dem Startbildschirm ablegen
+
+Der Trainer-Assistent lässt sich wie eine App auf den Startbildschirm legen:
+eigenes Symbol, eigener Name, Start ohne Adressleiste. Installiert wird dabei
+nichts – es ist eine Verknüpfung, die im Browser läuft. Das Passwort bleibt
+nötig, die Anmeldung hält wie gewohnt 30 Tage.
+
+**So geht es für die Mitarbeitenden:** ganz unten auf der Startseite, direkt
+über dem Logo, steht der Knopf **„Zum Startbildschirm hinzufügen"**.
+
+* **Android (Chrome), Windows, Mac (Chrome/Edge):** Ein Tipp darauf öffnet die
+  Rückfrage des Systems, ein zweiter bestätigt sie.
+* **iPhone und iPad:** Apple lässt keinen Knopf zu, der das selbst erledigt.
+  Deshalb zeigt der Knopf dort die zwei nötigen Schritte: in der Safari-Leiste
+  auf **Teilen** tippen, dann **Zum Home-Bildschirm** wählen.
+
+Der Knopf erscheint nur, wenn er auch etwas bewirkt: In der bereits abgelegten
+App und in Browsern ohne diese Möglichkeit (z. B. Firefox am Rechner) bleibt er
+unsichtbar. Nach dem Ablegen verschwindet er von selbst.
+
+**Wenn der Knopf nicht auftaucht** (Android/Chrome), liegt es fast immer an
+einem von drei Punkten:
+
+1. Die Seite läuft nicht über `https://` – bei Cloudflare immer der Fall,
+   lokal unter `localhost` ebenfalls in Ordnung.
+2. Die App ist auf diesem Gerät bereits abgelegt.
+3. Der Browser hat eine ältere Fassung im Speicher. Seite einmal neu laden.
+
+**Für Dich als Betreuer:** Das Symbol, der angezeigte Name und die Farben
+stehen in `public/manifest.webmanifest`. Der Name auf dem Startbildschirm ist
+`short_name` – aktuell „Trainer", weil längere Namen dort abgeschnitten
+werden. Die Symbole liegen in `public/icons/` und werden aus
+`scripts/build-app-icons.mjs` erzeugt (siehe 11.6).
+
 ---
 
 ## 7. Was Du beachten musst
@@ -889,6 +923,10 @@ public/              ← alles hier wird veröffentlicht
   dokumente.html        Dokumente & QR-Codes   ← neu
   dokumente/            die PDFs + manifest.json (automatisch) + titel.json
   pdf-share.js          QR-Dialog für PDFs, die ein Modul erzeugt
+  pwa.js                Knopf "Zum Startbildschirm hinzufügen"  ← neu
+  sw.js                 Service Worker (Zwischenspeicher)  ← neu
+  manifest.webmanifest  Name, Farben und Symbole der abgelegten App  ← neu
+  icons/                die App-Symbole in allen Größen  ← neu
   fonts/                selbst gehostete Schriften  ← neu (DSGVO)
   vendor/               jsPDF, html2canvas, QR-Bibliothek  ← neu (DSGVO)
   fms-img/              Bilder für das FMS-Modul
@@ -904,6 +942,7 @@ scripts/             ← Helfer, laufen auf Deinem Rechner
   fetch-fonts.mjs       lädt die Schriften von Google herunter
   check-icons.mjs       prüft, ob alle Icons vorhanden sind
   icons.mjs             Liste der verwendeten Icons
+  build-app-icons.mjs   erzeugt die App-Symbole in public/icons/  ← neu
 
 archiv/              ← alte Einzeldatei-Version, wird NICHT veröffentlicht
 quellen/             ← Logo-Rohdateien, werden NICHT veröffentlicht
@@ -920,6 +959,7 @@ wrangler.jsonc       ← Einstellungen (Laufzeiten, Rate-Limit, QR-Ablage)
 | `npm run check` | Konfiguration prüfen, ohne zu veröffentlichen |
 | `npm run check:icons` | prüfen, ob alle Icons in der Schrift sind |
 | `npm run fetch:fonts` | Schriften neu von Google laden |
+| `npm run build:app-icons` | App-Symbole in `public/icons/` neu erzeugen |
 | `npx wrangler secret put APP_PASSWORD` | Team-Passwort setzen/ändern |
 | `npx wrangler secret list` | anzeigen, welche Geheimnisse gesetzt sind |
 | `npx wrangler tail` | Live-Protokoll der Zugriffe ansehen |
@@ -997,6 +1037,38 @@ Vor der Übergabe automatisiert geprüft (lokal, mit echtem Browser):
 * Der erzeugte QR-Code wurde als Bild wieder **maschinell eingelesen** und
   enthielt exakt den richtigen Link – er ist also mit der Handykamera scanbar.
 * Darstellung auf Desktop und iPhone geprüft.
+* Startbildschirm: `manifest.webmanifest` wird mit korrektem Typ und ohne
+  Anmeldung ausgeliefert, ebenso alle Symbole; der Service Worker meldet sich
+  als aktiv; der Knopf bleibt am Rechner verborgen, erscheint auf dem iPhone
+  und zeigt dort die Anleitung; in der bereits abgelegten App bleibt er
+  verborgen. Keine Konsolenfehler.
+
+---
+
+### 11.6 Die App-Symbole
+
+Die Symbole in `public/icons/` sind eingecheckt – für ein Deploy muss nichts
+erzeugt werden. Wer das Symbol ändern will, ändert die Linien in
+`scripts/build-app-icons.mjs` (dieselben Koordinaten wie in
+`public/favicon.svg`) und ruft danach auf:
+
+```bash
+npm run build:app-icons
+```
+
+Das Skript braucht keine Fremdbibliothek und schreibt alle Größen neu:
+
+| Datei | Wofür |
+|---|---|
+| `icon-16 … icon-512.png` | Browser-Tab, Android, Windows |
+| `apple-touch-icon-120 … -180.png` | iPhone und iPad – randlos und deckend, weil iOS die Ecken selbst rundet |
+| `maskable-192/512.png` | Android darf frei zuschneiden (Kreis, Tropfen); die Zeichnung liegt deshalb in den inneren 76 % |
+| `app-icon.svg` | die Vektorfassung, in jeder Auflösung scharf |
+
+Warum so viele Dateien? Jedes System wählt eine andere Kantenlänge und
+erwartet einen anderen Rand. Wer nur ein einzelnes 512er-Bild hinterlegt,
+bekommt auf dem iPhone ein Symbol mit weißem Rahmen und auf manchen
+Android-Geräten einen abgeschnittenen Pfeil.
 
 ---
 
