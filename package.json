@@ -6,11 +6,12 @@
   "description": "Trainer-Assistent by linzenich – passwortgeschütztes Hosting auf Cloudflare Workers",
   "scripts": {
     "dev": "npm run build:manifest && wrangler dev",
-    "deploy": "npm run build:manifest && npm run check:icons && wrangler deploy",
+    "deploy": "npm run build:manifest && npm run build:app-icons && npm run check:icons && wrangler deploy",
     "build:manifest": "node scripts/build-manifest.mjs",
     "check:icons": "node scripts/check-icons.mjs",
     "fetch:fonts": "node scripts/fetch-fonts.mjs",
-    "check": "wrangler deploy --dry-run"
+    "check": "wrangler deploy --dry-run",
+    "build:app-icons": "node scripts/build-app-icons.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.36.0"

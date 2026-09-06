@@ -24,13 +24,26 @@ import {
 } from './tokens.js';
 import { passwordMatches } from './crypto.js';
 
-/** Dateien, die auch ohne Anmeldung nötig sind – sie tragen keine Inhalte. */
+/**
+ * Dateien, die auch ohne Anmeldung nötig sind – sie tragen keine Inhalte.
+ *
+ * manifest.webmanifest und /icons/ gehören dazu, weil der Browser sie beim
+ * Ablegen auf dem Startbildschirm ohne Anmelde-Cookie anfordert. Stünden sie
+ * hinter dem Login, bekäme er die Anmeldeseite zurück – die Verknüpfung
+ * erhielte dann ein leeres Symbol und einen falschen Namen.
+ *
+ * sw.js ist ebenfalls frei erreichbar: Der Browser prüft den Service Worker
+ * regelmäßig im Hintergrund, auch mit abgelaufener Sitzung. Bekäme er dabei
+ * HTML statt JavaScript, würde er die Registrierung verwerfen.
+ */
 const PUBLIC_FILES = new Set([
   '/trainer-assistent-logo.png',
   '/by-linzenich-weiss.png',
   '/favicon.svg',
+  '/manifest.webmanifest',
+  '/sw.js',
 ]);
-const PUBLIC_PREFIXES = ['/fonts/'];
+const PUBLIC_PREFIXES = ['/fonts/', '/icons/'];
 
 /** Nur PDFs aus diesem Ordner dürfen per QR-Code freigegeben werden. */
 const SHARE_ROOT = '/dokumente/';
@@ -412,6 +425,13 @@ async function serveAsset(request, env) {
   const response = new Response(upstream.body, upstream);
   const type = response.headers.get('Content-Type') || '';
   const path = new URL(request.url).pathname;
+
+  // Ohne den korrekten Typ wertet der Browser das Manifest nicht aus und
+  // bietet die Installation gar nicht erst an. Die Endung .webmanifest ist
+  // nicht überall hinterlegt, deshalb wird der Typ hier ausdrücklich gesetzt.
+  if (path === '/manifest.webmanifest') {
+    response.headers.set('Content-Type', 'application/manifest+json; charset=utf-8');
+  }
 
   // Angemeldete Inhalte dürfen niemals in einem gemeinsamen Cache landen.
   const longLived = PUBLIC_PREFIXES.some((p) => path.startsWith(p)) || path.startsWith('/vendor/');

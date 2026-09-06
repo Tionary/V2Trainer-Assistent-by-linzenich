@@ -28,6 +28,10 @@ npm run deploy
 | Beweglichkeit | Functional Movement Screening mit Übungsableitung |
 | Dokumente | PDFs mit befristeten QR-Codes für Teilnehmer |
 
+Die Seite lässt sich über den Knopf **„Zum Startbildschirm hinzufügen"** (ganz
+unten auf der Startseite) wie eine App ablegen – mit eigenem Symbol, ohne
+Adressleiste. Details: [ANLEITUNG.md, Abschnitt 6.6](ANLEITUNG.md#66-die-app-auf-dem-startbildschirm-ablegen).
+
 Jede Auswertung, die ein Modul als PDF erzeugt (Trainingsplan, PWC, FMS,
 Food-Swap-Plan), lässt sich auch als **befristeter QR-Code** weitergeben.
 Dafür ist eine einmalige Einrichtung nötig – siehe
@@ -37,7 +41,7 @@ Dafür ist eine einmalige Einrichtung nötig – siehe
 
 * `public/` – die App (wird veröffentlicht)
 * `src/` – der Cloudflare Worker: Passwortschutz und QR-Freigaben
-* `scripts/` – Helfer für PDF-Liste, Schriften und Icon-Prüfung
+* `scripts/` – Helfer für PDF-Liste, Schriften, Icon-Prüfung und App-Symbole
 * `archiv/`, `quellen/` – Altbestand und Rohdaten, werden **nicht** veröffentlicht
 
 ## Wichtigste Befehle
@@ -47,6 +51,7 @@ npm run dev            # lokale Vorschau auf localhost:8787
 npm run deploy         # veröffentlichen
 npm run check          # Konfiguration prüfen
 npm run check:icons    # prüfen, ob alle Icons in der Schrift enthalten sind
+npm run build:app-icons # App-Symbole in public/icons/ neu erzeugen
 ```
 
 Details zu allem: [ANLEITUNG.md](ANLEITUNG.md)
