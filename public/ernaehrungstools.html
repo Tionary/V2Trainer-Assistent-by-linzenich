@@ -5032,20 +5032,58 @@ const situationsDB = [
 
         /* ═════════ KALORIENEMPFEHLUNG ALS PDF / QR-CODE (CI by linzenich) ═════════ */
 
-        /* Gezielte Empfehlung je Ziel – Texte aus dem Supplement-Bereich, fürs PDF gekürzt */
+        /* Empfehlung je Ziel – dieselbe Kombination wie im Tipp unter dem Ergebnis */
         const PDF_SUPPLEMENTS = {
-            amino: { name: 'Aminosäuren', txt: 'Schützt die Muskeln, fördert die Regeneration.' },
-            creatine: { name: 'Kreatin Monohydrat', txt: 'Mehr Schnellkraft und Leistung.' },
-            omega3: { name: 'Omega-3 Fettsäuren', txt: 'Für Herz, Gehirn und Entzündungshemmung.' }
+            amino: { name: 'Aminosäuren', txt: 'Für Regeneration und Muskelerhalt.' },
+            creatine: { name: 'Kreatin Monohydrat', txt: 'Mehr Schnellkraft und Leistung im Training.' },
+            omega3: { name: 'Omega-3 Fettsäuren', txt: 'Für Herz und Gehirn.' }
         };
-        const PDF_SUPPLEMENTS_BY_GOAL = { build: ['amino', 'creatine'], cut: ['amino', 'omega3'] };
+        const PDF_SUPPLEMENTS_BY_GOAL = {
+            build: { title: 'Kreatin & Aminosäuren', items: ['creatine', 'amino'] },
+            cut: { title: 'Aminosäuren & Omega-3', items: ['amino', 'omega3'] }
+        };
 
         /* Farben der Makro-Balken im Rechner (Tailwind blue-500 / yellow-500 / Markengrün) */
         const MACRO_COLORS = { prot: '#2b7fff', fat: '#f0b100', carb: '#5cb85c' };
 
         const BUILD_PHASE_WEEKS = 12; // Planungszeitraum der Aufbauphase im PDF
 
-        /* „Deine Angaben“ – steht im grünen Kopf, spart eine eigene Zeile */
+        /* Zusatzstile nur für dieses PDF (Grundgerüst: member-pdf.js) */
+        const CALC_PDF_CSS = [
+            '.kpi{padding:24px 48px 0}',
+            '.sec{padding-top:22px}',
+            // Makros: ein Balken, Werte stehen im jeweiligen Abschnitt
+            '.mbar{display:flex;gap:4px;border-radius:14px;overflow:hidden}',
+            '.mseg{min-width:130px;padding:14px 16px 16px;color:#1a1a1a}',
+            '.mseg .cap{color:#1a1a1a}',
+            '.mseg b{display:block;font-size:28px;line-height:34px;font-weight:700;margin-top:2px}',
+            '.mseg span{display:block;font-size:14px;line-height:19px}',
+            // Unten: Empfehlung (grün) und Coaching (gold) nebeneinander
+            '.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:24px 48px 0}',
+            '.sup,.co{border-radius:12px;padding:20px 22px;display:flex;flex-direction:column}',
+            '.sup{background:#144a3c;color:#fff}',
+            '.sup .cap{color:#fff}',
+            '.sup h3,.co h3{margin:4px 0 0;font-size:22px;line-height:27px;font-weight:700}',
+            '.si{display:flex;gap:12px;align-items:flex-start;margin-top:14px}',
+            '.si i{flex:none;width:26px;height:26px;border-radius:50%;background:#af8f61;display:flex;align-items:center;justify-content:center;margin-top:1px}',
+            '.si b{display:block;font-size:17px;line-height:22px}',
+            '.si span{display:block;font-size:14px;line-height:20px;color:#dbe7e1}',
+            '.pill{margin-top:auto;align-self:flex-start;background:#fff;color:#144a3c;border-radius:9999px;padding:6px 14px;',
+            '  font-size:13px;line-height:16px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}',
+            '.pill-gap{height:16px;flex:none}',
+            '.co{background:#af8f61;color:#1a1a1a}',
+            '.co .cap{color:#1a1a1a}',
+            '.co-when{display:flex;gap:14px;align-items:center;margin-top:14px}',
+            '.cal{flex:none;width:84px;background:#fff;border-radius:10px;overflow:hidden;text-align:center}',
+            '.cal .wd{background:#144a3c;color:#fff;font-size:12px;line-height:20px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}',
+            '.cal .d{font-size:34px;line-height:40px;font-weight:700;color:#1a1a1a}',
+            '.cal .m{font-size:12px;line-height:16px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6b665e;padding-bottom:6px}',
+            '.co-topic{font-size:20px;line-height:25px;font-weight:700}',
+            '.co-meta{font-size:15px;line-height:21px;margin-top:2px}',
+            '.co p{margin:14px 0 0;font-size:14px;line-height:20px}'
+        ].join('\n');
+
+        /* „Deine Angaben“ – steht im grünen Kopf */
         function calcPdfFacts(c) {
             const facts = [c.female ? 'weiblich' : 'männlich', `${Math.round(c.age)} Jahre`, `${Math.round(c.height)} cm`, `${nf(c.weight, 1)} kg`];
             if (c.pro && c.bf > 0) facts.push(`${nf(c.bf, 1)} % Körperfett`);
@@ -5054,7 +5092,47 @@ const situationsDB = [
             return 'Deine Angaben: ' + facts.join(' · ');
         }
 
-        function calcPdfBody(c, nextCoaching) {
+        const CHECK_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3.2" ' +
+            'stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+        function calcPdfSupplements(goal) {
+            const E = MemberPdf.esc;
+            const rec = PDF_SUPPLEMENTS_BY_GOAL[goal];
+            const items = rec.items.map(k => PDF_SUPPLEMENTS[k]).map(s =>
+                `<div class="si"><i>${CHECK_SVG}</i><div><b>${E(s.name)}</b><span>${E(s.txt)}</span></div></div>`).join('');
+            return `<div class="sup"><div class="cap">Unsere Empfehlung für Dein Ziel</div>
+                <h3>${E(rec.title)}</h3>${items}<div class="pill-gap"></div>
+                <div class="pill">Direkt im Club erhältlich</div></div>`;
+        }
+
+        /* Coaching-Karte. Mit Datum steht der Termin als Kalenderblatt groß drin. */
+        function calcPdfCoaching(v) {
+            const E = MemberPdf.esc;
+            const day = v && v.date ? new Date(v.date + 'T00:00:00') : null;
+            const hasDate = day && !isNaN(day);
+            if (!v || !(hasDate || v.topic || v.coach)) {
+                return `<div class="co"><div class="cap">Ernährungscoaching · 1× im Monat</div>
+                    <p>Wenn Dich das Thema Ernährung interessiert, empfehlen wir Dir unser Ernährungscoaching, das monatlich
+                    mit verschiedenen Themen wie Muskelaufbau, Gewichtsmanagement etc. stattfindet. Frag einfach Deine
+                    Trainer vor Ort, wann das nächste Coaching stattfindet, und lass Dich eintragen.</p></div>`;
+            }
+            const meta = [];
+            if (v.coach) meta.push(`mit ${v.coach}`);
+            if (v.time) meta.push(`${v.time} Uhr`);
+            const topic = v.topic || 'Ernährungscoaching';
+            const when = hasDate
+                ? `<div class="co-when"><div class="cal">
+                        <div class="wd">${E(day.toLocaleDateString('de-DE', { weekday: 'short' }))}</div>
+                        <div class="d">${E(String(day.getDate()).padStart(2, '0'))}</div>
+                        <div class="m">${E(day.toLocaleDateString('de-DE', { month: 'long' }))}</div></div>
+                    <div><div class="co-topic">${E(topic)}</div>${meta.length ? `<div class="co-meta">${E(meta.join(' · '))}</div>` : ''}</div></div>`
+                : `<div class="co-when"><div><div class="co-topic">${E(topic)}</div>${meta.length ? `<div class="co-meta">${E(meta.join(' · '))}</div>` : ''}</div></div>`;
+            return `<div class="co"><div class="cap">Nächstes Ernährungscoaching</div>${when}
+                <p>Unser monatliches Ernährungscoaching mit wechselnden Themen rund um Deine Ernährung.
+                ${hasDate ? 'Lass Dich bei Deinen Trainern vor Ort eintragen.' : 'Frag Deine Trainer vor Ort nach dem Termin und lass Dich eintragen.'}</p></div>`;
+        }
+
+        function calcPdfBody(c, coachingInfo) {
             const E = MemberPdf.esc;
             const r = n => Math.round(n).toLocaleString('de-DE');
             const d = date => date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -5064,72 +5142,61 @@ const situationsDB = [
             const card = (cap, num, txt, hl) => `<div class="card${hl ? ' hl' : ''}"><div class="cap">${cap}</div>
                 <div class="num">${num}<small>kcal</small></div><div class="txt">${txt}</div></div>`;
 
-            let html = MemberPdf.section('', `<div class="g3">
+            // Drei Kennzahlen
+            let html = `<div class="kpi"><div class="g3">
                     ${card('Grundumsatz', r(c.bmr), c.bmrIsMeasured ? 'gemessen per BIA' : 'Verbrauch in völliger Ruhe')}
                     ${card('Tagesbedarf', r(daily), 'damit hältst Du Dein Gewicht')}
                     ${card('Dein Ziel', r(c.totalKcal), isBuild ? 'für sauberen Muskelaufbau' : 'um gezielt Fett zu verlieren', true)}
-                </div>`);
+                </div></div>`;
 
-            // Detail: Zeitraum als eine Leiste mit drei Kennzahlen
+            // Detail: Zeitraum · Basis: kurze Anleitung
             if (c.pro) {
                 const today = new Date();
                 const cell = (cap, num, unit, txt) => `<div><div class="cap">${cap}</div>
                     <div class="num">${num}${unit ? `<small>${unit}</small>` : ''}</div>${txt ? `<div class="txt mut">${txt}</div>` : ''}</div>`;
-                let cells = '', note = '';
+                let cells = '';
                 if (c.cutInfo && c.cutInfo.valid) {
                     const i = c.cutInfo;
-                    cells = cell('Dein Zeitraum', `${i.weeks}`, i.weeks === 1 ? 'Woche' : 'Wochen', `${d(today)} – ${d(i.date)}`) +
+                    cells = cell('Zeitraum', `${i.weeks}`, i.weeks === 1 ? 'Woche' : 'Wochen', `${d(today)} – ${d(i.date)}`) +
                         cell('Zielgewicht', nf(i.targetWeight, 1), 'kg', `bei ${nf(c.bfTarget, 1)} % Körperfett`) +
                         cell('Abnahme', nf(i.weeklyLossStart, 2), 'kg/Woche', `insgesamt ${nf(i.lossTotal, 1)} kg`);
-                    note = `Von ${nf(c.bf, 1)} % auf ${nf(c.bfTarget, 1)} % Körperfett in rund ${nf(i.weeks / 4.345, 1)} Monaten – alle 4–6 Wochen rechnen wir nach.`;
                 } else if (c.cutInfo) {
                     const i = c.cutInfo;
-                    cells = cell('Dein Tempo', fmtPace(i.pace), '% KG/Woche', '') +
+                    cells = cell('Tempo', fmtPace(i.pace), '% KG/Woche', 'Deines Körpergewichts') +
                         cell('Abnahme', nf(i.weeklyLossStart, 2), 'kg/Woche', `≈ ${nf(i.weeklyLossStart * 4.345, 1)} kg pro Monat`) +
-                        cell('Defizit', r(i.deficitStart), 'kcal/Tag', '');
-                    note = 'Den Zeitraum bis zu Deinem Wunschgewicht legst Du mit Deinem Trainer fest.';
+                        cell('Defizit', r(i.deficitStart), 'kcal/Tag', 'unter Deinem Tagesbedarf');
                 } else if (c.buildInfo) {
                     const i = c.buildInfo;
                     const end = new Date(today.getTime() + BUILD_PHASE_WEEKS * 7 * 86400000);
-                    cells = cell('Dein Zeitraum', `${BUILD_PHASE_WEEKS}`, 'Wochen', `${d(today)} – ${d(end)}`) +
+                    cells = cell('Zeitraum', `${BUILD_PHASE_WEEKS}`, 'Wochen', `${d(today)} – ${d(end)}`) +
                         cell('Zunahme', nf(i.gainPerMonth, 2), 'kg/Monat', `≈ ${nf(i.gainPerWeek, 2)} kg pro Woche`) +
-                        cell(`Nach ${BUILD_PHASE_WEEKS} Wochen`, '+' + nf(i.gainPerWeek * BUILD_PHASE_WEEKS, 1), 'kg', 'Zielwert auf der Waage');
-                    note = 'Wiege Dich 3× pro Woche morgens – bleibt die Zunahme aus, erhöhen wir um ca. 100 kcal.';
+                        cell(`Nach ${BUILD_PHASE_WEEKS} Wochen`, '+' + nf(i.gainPerWeek * BUILD_PHASE_WEEKS, 1), 'kg', 'Richtwert auf der Waage');
                 }
-                html += MemberPdf.section('', `<div class="strip">${cells}</div>
-                    <p class="p" style="margin-top:8px;font-size:15px;line-height:22px">${E(note)}</p>`);
+                html += MemberPdf.section(isBuild ? 'Deine Aufbauphase' : 'Dein Weg zum Ziel', `<div class="strip">${cells}</div>`);
             } else {
-                html += MemberPdf.section('', `<p class="p">${isBuild
-                    ? 'Iss an Trainings- und Ruhetagen ungefähr gleich viel. Wiege Dich einmal pro Woche morgens: Ein Plus von 0,25–0,5 kg pro Woche ist ideal.'
-                    : 'Iss an Trainings- und Ruhetagen ungefähr gleich viel. Wiege Dich einmal pro Woche morgens: Ein Minus von 0,5–1 % Deines Körpergewichts pro Woche ist ideal.'
-                } Tut sich zwei Wochen nichts, sprich mit Deinem Trainer über eine Anpassung.</p>`);
+                html += MemberPdf.section('So setzt Du es um', `<ul class="tips" style="margin-top:0">
+                    <li>Iss an Trainings- und Ruhetagen ungefähr gleich viel.</li>
+                    <li>Wiege Dich einmal pro Woche morgens unter gleichen Bedingungen – ideal ist ${isBuild
+                        ? 'ein Plus von 0,25–0,5 kg pro Woche'
+                        : 'ein Minus von 0,5–1 % Deines Körpergewichts pro Woche'}.</li></ul>`);
             }
 
-            // Makronährstoffe – je ein Balken wie im Kalorienrechner, Werte direkt daneben
+            // Makronährstoffe – farbiger Balken wie im Kalorienrechner
             const sum = c.proteinKcal + c.fatKcal + c.carbsKcal || 1;
             const macros = [
                 { key: 'prot', name: 'Protein', g: c.proteinG, kcal: c.proteinKcal },
                 { key: 'fat', name: 'Fette', g: c.fatG, kcal: c.fatKcal },
                 { key: 'carb', name: 'Kohlenhydrate', g: c.carbsG, kcal: c.carbsKcal }
             ];
-            const rows = macros.map(m => {
+            const segs = macros.map(m => {
                 const pct = m.kcal / sum * 100;
-                return `<div class="mrow"><div class="mname">${m.name}</div>
-                    <div class="mbar"><div class="track"><div class="fill" style="width:${pct.toFixed(2)}%;background:${MACRO_COLORS[m.key]}"></div></div>
-                        <div class="mpct">${Math.round(pct)} %</div></div>
-                    <div class="mval"><b>${r(m.g)} g</b>${r(m.kcal)} kcal</div></div>`;
+                return `<div class="mseg" style="flex:${pct.toFixed(2)} 1 0px;background:${MACRO_COLORS[m.key]}">
+                    <div class="cap">${m.name}</div><b>${r(m.g)} g</b><span>${r(m.kcal)} kcal · ${Math.round(pct)} %</span></div>`;
             }).join('');
-            html += MemberPdf.section('Deine Makronährstoffe', `<div>${rows}</div>`);
+            html += MemberPdf.section('Deine Makronährstoffe pro Tag', `<div class="mbar">${segs}</div>`);
 
-            // Supplements passend zum Ziel
-            const sups = PDF_SUPPLEMENTS_BY_GOAL[c.goal].map(k => PDF_SUPPLEMENTS[k]).map(s =>
-                `<div class="warm"><b>${E(s.name)}</b><div class="txt">${E(s.txt)}</div></div>`).join('');
-            html += MemberPdf.section('', `
-                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
-                    <h2 style="margin:0">Passend zu Deinem Ziel</h2><div class="cap gold">Direkt im Club erhältlich</div></div>
-                <div class="g2">${sups}</div>`);
-
-            html += MemberPdf.coaching(nextCoaching);
+            // Empfehlung + Coaching
+            html += `<div class="duo">${calcPdfSupplements(c.goal)}${calcPdfCoaching(coachingInfo)}</div>`;
             return html;
         }
 
@@ -5155,25 +5222,23 @@ const situationsDB = [
             };
         }
 
-        /* „Gewichtsmanagement bei Simon am Do., 08.10. um 18:00 Uhr“ */
+        /* Vorschau-Zeile, z. B. „Gewichtsmanagement · Do., 08.10. · 18:00 Uhr“ */
         function coachingLine(v) {
             const parts = [];
             if (v.topic) parts.push(v.topic);
-            if (v.coach) parts.push(`bei ${v.coach}`);
+            if (v.coach) parts.push(`mit ${v.coach}`);
             if (v.date) {
                 const day = new Date(v.date + 'T00:00:00');
-                if (!isNaN(day)) parts.push(`am ${day.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}`);
+                if (!isNaN(day)) parts.push(day.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }));
             }
-            if (v.time) parts.push(`um ${v.time} Uhr`);
-            if (!parts.length) return '';
-            const line = parts.join(' ');
-            return line.charAt(0).toUpperCase() + line.slice(1);
+            if (v.time) parts.push(`${v.time} Uhr`);
+            return parts.join(' · ');
         }
 
         function updateCoachingPreview() {
             const line = coachingLine(readCoachingForm());
             el('cc_preview').textContent = line
-                ? `Im PDF: „${line}“`
+                ? `Im PDF: ${line}`
                 : 'Ohne Angaben steht im PDF der allgemeine Hinweis auf das monatliche Coaching.';
         }
 
@@ -5196,14 +5261,13 @@ const situationsDB = [
         function submitCoachingDialog(e, skip) {
             if (e) e.preventDefault();
             const mode = coachingMode;
-            let next = '';
+            let info = null;
             if (!skip) {
-                const v = readCoachingForm();
-                try { localStorage.setItem(COACHING_KEY, JSON.stringify(v)); } catch (err) { }
-                next = coachingLine(v);
+                info = readCoachingForm();
+                try { localStorage.setItem(COACHING_KEY, JSON.stringify(info)); } catch (err) { }
             }
             closeCoachingDialog();
-            buildCalcPDF(mode, next);
+            buildCalcPDF(mode, info);
         }
 
         document.addEventListener('keydown', e => {
@@ -5215,7 +5279,7 @@ const situationsDB = [
             openCoachingDialog(mode === 'qr' ? 'qr' : 'download');
         }
 
-        function buildCalcPDF(mode, nextCoaching) {
+        function buildCalcPDF(mode, coachingInfo) {
             const c = lastCalc;
             const asQr = mode === 'qr';
             const btn = el(asQr ? 'calc_btn_qr' : 'calc_btn_pdf');
@@ -5226,16 +5290,18 @@ const situationsDB = [
             const isBuild = c.goal === 'build';
             const adj = Math.round(Math.abs(c.adjustment)).toLocaleString('de-DE');
             const legal = (c.bmrIsMeasured ? '*Grundumsatz gemessen per BIA/InBody' : '*Grundumsatz geschätzt nach Mifflin-St Jeor') +
-                (c.pro ? ', Zielanpassung und Zeitprognose nach Eric Helms' : '') +
+                (c.pro ? ', Zielanpassung und Prognose nach Eric Helms' : '') +
                 '. Alle Werte gerundet. Richtwerte für gesunde Erwachsene – kein Ersatz für ärztliche Beratung.';
 
             MemberPdf.create({
-                eyebrow: `Deine Kalorienempfehlung · Ziel: ${isBuild ? 'Muskelaufbau' : 'Definition'}${c.pro ? ' · Detailanalyse' : ''}`,
+                eyebrow: `Deine Kalorienempfehlung${c.pro ? ' · Detailanalyse' : ''}`,
                 headline: `${Math.round(c.totalKcal).toLocaleString('de-DE')} kcal pro Tag`,
                 sub: isBuild ? `Moderater Überschuss von +${adj} kcal über Deinem Tagesbedarf`
                     : `Defizit von ${adj} kcal unter Deinem Tagesbedarf`,
                 facts: calcPdfFacts(c),
-                body: calcPdfBody(c, nextCoaching),
+                stoerer: { small: 'Dein Ziel', lines: isBuild ? ['Muskel-', 'aufbau'] : ['Definition'] },
+                css: CALC_PDF_CSS,
+                body: calcPdfBody(c, coachingInfo),
                 legal,
                 filename: `Kalorienempfehlung_${new Date().toISOString().slice(0, 10)}.pdf`,
                 title: 'Kalorienempfehlung',
@@ -5409,7 +5475,7 @@ function selectSituation(id) {
         </div>
         <div class="cc-field">
             <label for="cc_coach">Trainer</label>
-            <input id="cc_coach" autocomplete="off" placeholder="z. B. Simon" oninput="updateCoachingPreview()">
+            <input id="cc_coach" autocomplete="off" placeholder="Name (optional)" oninput="updateCoachingPreview()">
         </div>
         <div class="cc-grid">
             <div class="cc-field">
@@ -5431,8 +5497,8 @@ function selectSituation(id) {
 
 <script src="vendor/html2canvas.min.js"></script>
 <script src="vendor/qrcode.js"></script>
-<script src="pdf-share.js"></script>
-<script src="member-pdf.js"></script>
+<script src="pdf-share.js?v=2"></script>
+<script src="member-pdf.js?v=4"></script>
 
 </body>
 
