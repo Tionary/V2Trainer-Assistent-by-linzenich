@@ -22,8 +22,8 @@ npm run deploy
 
 | Modul | Inhalt |
 |---|---|
-| Ernährung | Food Swapper, Kalorienrechner, Friendly-Food-Rezepte |
-| Kraft | One-Rep-Max, Trainingsgewichte nach Ziel, Progressionsschemata |
+| Ernährung | Food Swapper, Kalorienrechner (Empfehlung als PDF/QR-Code), Friendly-Food-Rezepte |
+| Kraft | One-Rep-Max, Trainingsgewichte nach Ziel, Progressionsschemata (Text für Magicline kopieren, PDF/QR-Code) |
 | Ausdauer | Cardio-Coach (HF-Zonen, Planer) und PWC-Ausdauertest |
 | Beweglichkeit | Functional Movement Screening mit Übungsableitung |
 | Dokumente | PDFs mit befristeten QR-Codes für Teilnehmer |
@@ -33,7 +33,7 @@ unten auf der Startseite) wie eine App ablegen – mit eigenem Symbol, ohne
 Adressleiste. Details: [ANLEITUNG.md, Abschnitt 6.6](ANLEITUNG.md#66-die-app-auf-dem-startbildschirm-ablegen).
 
 Jede Auswertung, die ein Modul als PDF erzeugt (Trainingsplan, PWC, FMS,
-Food-Swap-Plan), lässt sich auch als **befristeter QR-Code** weitergeben.
+Food-Swap-Plan, Progressionsplan, Kalorienempfehlung), lässt sich auch als **befristeter QR-Code** weitergeben.
 Dafür ist eine einmalige Einrichtung nötig – siehe
 [ANLEITUNG.md, Abschnitt 5.2](ANLEITUNG.md#5-der-alltag-qr-codes-für-pdfs).
 
