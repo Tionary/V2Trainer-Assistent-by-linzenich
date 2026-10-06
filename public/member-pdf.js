@@ -7,14 +7,16 @@
  * weißer Grund, Gold #af8f61, Grün #144a3c, Source Sans.
  *
  * Einbinden (nach jsPDF, html2canvas, qrcode.js und pdf-share.js):
- *   <script src="member-pdf.js"></script>
+ *   <script src="member-pdf.js?v=…"></script>   (Version bei jeder Änderung hochzählen –
+ *   der Worker lässt Skripte eine Stunde im Browser-Cache)
  *
  * Aufruf:
  *   MemberPdf.create({
  *     eyebrow: 'Dein Progressionsplan', headline: 'Beinpresse', sub: '…',
  *     body: MemberPdf.section('Titel', '<p class="p">…</p>'),
  *     legal: '*Fußnote', filename: 'Plan.pdf', title: 'Progressionsplan',
- *     mode: 'qr' | 'download'
+ *     mode: 'qr' | 'download',
+ *     // optional: facts (Zeile im Kopf), stoerer {small, lines[]}, css (Zusatzstile)
  *   });
  */
 'use strict';
@@ -44,10 +46,16 @@ window.MemberPdf = (function () {
     '.meta{text-align:right;font-size:13px;line-height:18px;color:#6b665e}',
     '.band{background:#af8f61;color:#1a1a1a;padding:10px 48px;font-size:16px;line-height:20px;font-weight:600;',
     '  letter-spacing:.02em;text-transform:uppercase}',
-    '.hero{background:#144a3c;color:#fff;padding:18px 48px 20px}',
+    '.hero{background:#144a3c;color:#fff;padding:20px 48px 22px;display:flex;align-items:center;gap:28px}',
+    '.hero-main{flex:1;min-width:0}',
     '.hero h1{margin:0;font-size:46px;line-height:52px;font-weight:700;text-transform:uppercase}',
     '.hero p{margin:4px 0 0;font-size:17px;line-height:24px}',
-    '.hero .facts{margin-top:6px;font-size:14px;line-height:20px;color:#e3ece8}',
+    '.hero .facts{margin-top:8px;font-size:14px;line-height:20px;color:#e3ece8}',
+    // Störer wie im Brandbook: goldener Kreis, leicht gedreht, Versalien
+    '.stoerer{flex:none;width:128px;height:128px;border-radius:50%;background:#af8f61;display:flex;flex-direction:column;',
+    '  align-items:center;justify-content:center;text-align:center;transform:rotate(-8deg)}',
+    '.stoerer small{font-size:13px;line-height:16px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#1a1a1a}',
+    '.stoerer b{font-size:20px;line-height:23px;font-weight:700;text-transform:uppercase;color:#fff}',
     '.sec{padding:16px 48px 0}',
     '.sec h2{margin:0 0 10px;font-size:22px;line-height:28px;font-weight:600}',
     '.p{margin:0;font-size:16px;line-height:24px}',
@@ -77,32 +85,10 @@ window.MemberPdf = (function () {
     '.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #d9d2c5;border-radius:12px;overflow:hidden}',
     '.strip>div{padding:12px 18px}',
     '.strip>div+div{border-left:1px solid #d9d2c5}',
-    // Makro-Zeilen: Name | eigener Balken mit Anteil | Menge – die Werte stehen am Balken
-    '.mrow{display:grid;grid-template-columns:150px minmax(0,1fr) 190px;column-gap:20px;align-items:start;padding:8px 0;border-top:1px solid #d9d2c5}',
-    '.mrow:first-child{border-top:0;padding-top:2px}',
-    '.mname{font-size:17px;line-height:24px;font-weight:700}',
-    '.mbar{display:flex;align-items:flex-start;gap:12px}',
-    // margin-top gleicht den Textversatz von html2canvas aus, damit Balken und Text auf einer Höhe stehen
-    '.track{flex:1;height:10px;border-radius:5px;background:#eee8dc;overflow:hidden;margin-top:18px}',
-    '.fill{height:10px;border-radius:5px}',
-    '.mpct{width:40px;text-align:right;font-size:15px;line-height:24px;color:#6b665e}',
-    '.mval{text-align:right;font-size:15px;line-height:24px;color:#6b665e}',
-    '.mval b{font-size:20px;color:#1a1a1a;margin-right:6px}',
-    '.coach{margin:20px 48px 0;background:#af8f61;color:#1a1a1a;border-radius:12px;padding:13px 22px}',
-    '.coach .p{font-size:15px;line-height:22px}',
-    '.coach .cap{color:#1a1a1a;font-size:16px;line-height:20px;margin-bottom:4px}',
-    '.coach .next{font-size:21px;line-height:26px;font-weight:700;margin-bottom:2px}',
     '.foot{margin-top:auto;padding:18px 48px 20px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px}',
     '.legal{font-size:13px;line-height:18px;color:#6b665e;max-width:520px}',
     '.claim{font-size:17px;font-weight:700;color:#7d6239;white-space:nowrap}'
   ]).join('\n');
-
-  var COACHING_INTRO = 'Wenn Dich das Thema Ernährung interessiert, empfehlen wir Dir unser ' +
-    'Ernährungscoaching, das monatlich mit verschiedenen Themen wie Muskelaufbau, ' +
-    'Gewichtsmanagement etc. stattfindet. ';
-  var COACHING_ASK = 'Frag einfach Deine Trainer vor Ort, wann das nächste Coaching ' +
-    'stattfindet, und lass Dich eintragen.';
-  var COACHING_SIGNUP = 'Lass Dich vor Ort eintragen.';
 
   /* ─────────────────────────── Bausteine ─────────────────────────── */
 
@@ -116,28 +102,18 @@ window.MemberPdf = (function () {
     return '<div class="sec">' + (title ? '<h2>' + esc(title) + '</h2>' : '') + inner + '</div>';
   }
 
-  /**
-   * Hinweis aufs Ernährungscoaching. Mit `next` (z. B. „Gewichtsmanagement bei
-   * Simon am Do., 08.10.“) steht der konkrete Termin groß im Kasten.
-   */
-  function coaching(next) {
-    if (next) {
-      return '<div class="coach"><div class="cap">Nächstes Ernährungscoaching</div>' +
-        '<div class="next">' + esc(next) + '</div>' +
-        '<div class="p">' + esc(COACHING_INTRO + COACHING_SIGNUP) + '</div></div>';
-    }
-    return '<div class="coach"><div class="cap">Ernährungscoaching · 1× im Monat</div>' +
-      '<div class="p">' + esc(COACHING_INTRO + COACHING_ASK) + '</div></div>';
-  }
-
   function pageHtml(o) {
     var date = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     return '<div class="pg">' +
       '<div class="top"><img class="logo" src="/by-linzenich-logo.png" alt="by linzenich – Mehr als Fitness!">' +
       '<div class="meta">Erstellt am ' + date + '</div></div>' +
       '<div class="band">' + esc(o.eyebrow) + '</div>' +
-      '<div class="hero"><h1>' + esc(o.headline) + '</h1>' + (o.sub ? '<p>' + esc(o.sub) + '</p>' : '') +
+      '<div class="hero"><div class="hero-main"><h1>' + esc(o.headline) + '</h1>' +
+      (o.sub ? '<p>' + esc(o.sub) + '</p>' : '') +
       (o.facts ? '<div class="facts">' + esc(o.facts) + '</div>' : '') + '</div>' +
+      (o.stoerer ? '<div class="stoerer"><small>' + esc(o.stoerer.small) + '</small>' +
+        o.stoerer.lines.map(function (l) { return '<b>' + esc(l) + '</b>'; }).join('') + '</div>' : '') +
+      '</div>' +
       o.body +
       '<div class="foot"><div class="legal">' + esc(o.legal || '') + '</div>' +
       '<div class="claim">Mehr als Fitness!</div></div>' +
@@ -146,7 +122,7 @@ window.MemberPdf = (function () {
 
   /* ─────────────────────────── Rendern ─────────────────────────── */
 
-  function frameFor(html) {
+  function frameFor(html, extraCss) {
     return new Promise(function (resolve, reject) {
       var f = document.createElement('iframe');
       f.setAttribute('aria-hidden', 'true');
@@ -156,7 +132,7 @@ window.MemberPdf = (function () {
       f.onerror = reject;
       f.srcdoc = '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">' +
         '<base href="' + location.origin + '/">' +
-        '<style>' + CSS + '</style></head>' +
+        '<style>' + CSS + (extraCss || '') + '</style></head>' +
         '<body>' + html + '</body></html>';
       document.body.appendChild(f);
     });
@@ -210,6 +186,22 @@ window.MemberPdf = (function () {
     return pdf;
   }
 
+  /**
+   * html2canvas misst die Grundlinie jeder Schrift mit einem 1×1-Bild in einem
+   * versteckten div im HAUPTdokument. Seiten mit Tailwind setzen dort
+   * img{display:block} – dann landet das Bild in einer eigenen Zeile, die
+   * Messung wird zu groß und aller Text im PDF rutscht nach unten. Für die
+   * Dauer des Renderns wird das zurückgesetzt.
+   */
+  function guardMetrics() {
+    var st = document.createElement('style');
+    st.textContent =
+      'body>div[style*="visibility: hidden"]{line-height:normal!important}' +
+      'body>div[style*="visibility: hidden"]>img{display:inline!important;max-width:none!important;height:1px!important}';
+    document.head.appendChild(st);
+    return function () { if (st.parentNode) st.parentNode.removeChild(st); };
+  }
+
   /** Dieselbe Schrift im Hauptdokument registrieren (siehe FONT). */
   var hostFonts = null;
   function loadHostFonts() {
@@ -233,7 +225,7 @@ window.MemberPdf = (function () {
     }
     var frame = null;
     return loadHostFonts()
-      .then(function () { return frameFor(pageHtml(o)); })
+      .then(function () { return frameFor(pageHtml(o), o.css); })
       .then(function (f) {
         frame = f;
         var doc = f.contentDocument;
@@ -251,6 +243,7 @@ window.MemberPdf = (function () {
         frame.style.height = root.scrollHeight + 'px';
         var scale = 2;
         var breaks = [];
+        var unguard = guardMetrics();
         return window.html2canvas(root, {
           scale: scale, backgroundColor: '#ffffff', useCORS: true, logging: false,
           windowWidth: PAGE_W, windowHeight: root.scrollHeight,
@@ -266,7 +259,8 @@ window.MemberPdf = (function () {
               return (el.getBoundingClientRect().top - top + (el.classList.contains('coach') ? -gap / 2 : gap / 2)) * scale;
             });
           }
-        }).then(function (canvas) { return toPdf(canvas, scale, breaks); });
+        }).then(function (canvas) { unguard(); return toPdf(canvas, scale, breaks); },
+                function (err) { unguard(); throw err; });
       })
       .then(function (pdf) {
         if (o.mode === 'qr') {
@@ -293,5 +287,5 @@ window.MemberPdf = (function () {
     return clean || fallback;
   }
 
-  return { create: create, section: section, coaching: coaching, esc: esc, safeName: safeName };
+  return { create: create, section: section, esc: esc, safeName: safeName };
 })();

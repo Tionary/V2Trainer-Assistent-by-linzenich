@@ -824,7 +824,7 @@ function exportPlanPdf(mode){
             <ul class="tips">
                 ${heldTip}
                 <li>Technik vor Gewicht: Schaffst Du die Wiederholungen nicht sauber, bleib beim Gewicht der Vorwoche.</li>
-                <li>Nach Woche 6 bestimmen wir Deinen One Rep Max gemeinsam neu – sprich Deinen Trainer an.</li>
+                <li>Nach Woche 6 lohnt sich ein neuer One-Rep-Max-Test als Basis für den nächsten Block.</li>
             </ul>`);
 
     const weeksTag = currentSchema === 'wave' ? '6 Wochen · 2 Wellen' : '6 Wochen';
@@ -833,7 +833,7 @@ function exportPlanPdf(mode){
         headline: exercise || 'Dein Progressionsplan',
         sub: `Ausgangswert One Rep Max: ${nf(round25(orm))} kg`,
         body,
-        legal: '*Gewichte berechnet aus Deinem One Rep Max (Epley-Formel) und auf 2,5 kg gerundet. Richtwerte – Dein Trainer passt sie bei Bedarf an.',
+        legal: '*Gewichte berechnet aus Deinem One Rep Max (Epley-Formel) und auf 2,5 kg gerundet. Richtwerte.',
         filename: `Progressionsplan_${MemberPdf.safeName(exercise, 'Uebung')}_${new Date().toISOString().slice(0,10)}.pdf`,
         title: exercise ? `Progressionsplan ${exercise}` : 'Progressionsplan',
         mode: asQr ? 'qr' : 'download',
@@ -849,7 +849,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/html2canvas.min.js"></script>
 <script src="vendor/qrcode.js"></script>
-<script src="pdf-share.js"></script>
-<script src="member-pdf.js"></script>
+<script src="pdf-share.js?v=2"></script>
+<script src="member-pdf.js?v=4"></script>
 </body>
 </html>
