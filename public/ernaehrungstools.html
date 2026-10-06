@@ -5174,11 +5174,11 @@ const situationsDB = [
                 }
                 html += MemberPdf.section(isBuild ? 'Deine Aufbauphase' : 'Dein Weg zum Ziel', `<div class="strip">${cells}</div>`);
             } else {
-                html += MemberPdf.section('So setzt Du es um', `<ul class="tips" style="margin-top:0">
-                    <li>Iss an Trainings- und Ruhetagen ungefähr gleich viel.</li>
-                    <li>Wiege Dich einmal pro Woche morgens unter gleichen Bedingungen – ideal ist ${isBuild
+                html += MemberPdf.section('So setzt Du es um', `<ol class="tips" style="margin-top:0">
+                    <li>Wiege Dich mehrmals pro Woche unter den gleichen Bedingungen – ideal ist ${isBuild
                         ? 'ein Plus von 0,25–0,5 kg pro Woche'
-                        : 'ein Minus von 0,5–1 % Deines Körpergewichts pro Woche'}.</li></ul>`);
+                        : 'ein Minus von 0,5–1 % Deines Körpergewichts pro Woche'}.</li>
+                    <li>Wenn Du über mehrere Wochen vom Ideal abweichst: Passe Deine Kalorien um 200 kcal nach oben oder unten an.</li></ol>`);
             }
 
             // Makronährstoffe – farbiger Balken wie im Kalorienrechner
@@ -5498,7 +5498,7 @@ function selectSituation(id) {
 <script src="vendor/html2canvas.min.js"></script>
 <script src="vendor/qrcode.js"></script>
 <script src="pdf-share.js?v=2"></script>
-<script src="member-pdf.js?v=4"></script>
+<script src="member-pdf.js?v=5"></script>
 
 </body>
 

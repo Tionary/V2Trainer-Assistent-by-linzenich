@@ -79,8 +79,8 @@ window.MemberPdf = (function () {
     '.tr.th{border-top:0;background:#f7f3ec;padding:9px 20px;font-size:13px;line-height:18px;font-weight:600;',
     '  letter-spacing:.02em;text-transform:uppercase;color:#6b665e}',
     '.tr .kg{font-size:20px;font-weight:700}',
-    'ul.tips{margin:12px 0 0;padding-left:20px;font-size:16px;line-height:24px}',
-    'ul.tips li+li{margin-top:4px}',
+    '.tips{margin:12px 0 0;padding-left:22px;font-size:16px;line-height:24px}',
+    '.tips li+li{margin-top:4px}',
     // Kennzahlen in einer Leiste (z. B. Zeitraum)
     '.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #d9d2c5;border-radius:12px;overflow:hidden}',
     '.strip>div{padding:12px 18px}',
