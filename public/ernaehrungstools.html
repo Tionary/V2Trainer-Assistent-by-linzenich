@@ -3388,6 +3388,20 @@
                                     onclick="switchView('swapper')" class="underline hover:text-white">Swapper</button>,
                                 um passende Lebensmittel zu finden.
                             </div>
+
+                            <!-- Empfehlung fürs Mitglied: PDF bzw. QR-Code im CI -->
+                            <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                <button type="button" id="calc_btn_qr" onclick="exportCalcPDF('qr')"
+                                    class="w-full px-4 py-3.5 sm:py-3 bg-white text-[#144A3C] hover:bg-gray-100 rounded-lg transition-colors text-sm font-bold flex items-center justify-center gap-2 shadow-lg active:bg-gray-200">
+                                    <span class="material-symbols-outlined text-lg">qr_code_2</span>
+                                    <span id="calc_btn_qr_label">QR-Code für den Kunden</span>
+                                </button>
+                                <button type="button" id="calc_btn_pdf" onclick="exportCalcPDF()"
+                                    class="w-full px-4 py-3.5 sm:py-3 border border-[#5cb85c]/40 text-[#5cb85c] hover:bg-[#5cb85c]/10 rounded-lg transition-colors text-sm font-semibold flex items-center justify-center gap-2 active:bg-[#5cb85c]/20">
+                                    <span class="material-symbols-outlined text-lg">picture_as_pdf</span>
+                                    <span id="calc_btn_pdf_label">PDF Export</span>
+                                </button>
+                            </div>
                         </div>
                         <div id="rec_container" class="hidden mt-8 pt-6 border-t border-gray-600/50 animate-fade-in-up">
                             <h4 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -4701,6 +4715,7 @@ const situationsDB = [
         const CALC_DEPTH_KEY = 'linzenich_calc_depth';
         const KCAL_PER_KG = 7700;
         let CALC_PRO = false;
+        let lastCalc = null; // letztes Ergebnis für PDF/QR-Code
 
         const CALC_DEPTH_TEXT = {
             basis: '<strong>Basis</strong> – Grundumsatz wird nach Mifflin-St Jeor aus Geschlecht, Gewicht, Größe und Alter geschätzt, die Zielanpassung erfolgt mit Standardwerten (Aufbau +250 bzw. +200 kcal, Definition −500 kcal).',
@@ -4980,6 +4995,13 @@ const situationsDB = [
             if (CALC_PRO && cutInfo) renderCutForecast(cutInfo, weight, bf, bfTarget, female, totalKcal, bmr);
             if (CALC_PRO && buildInfo) renderBuildForecast(buildInfo, weight, bf, female, totalKcal);
 
+            lastCalc = {
+                pro: CALC_PRO, goal, female, weight, height, age, pal,
+                palLabel: el('calc_pal').selectedOptions[0].textContent.replace(/\s*\([^)]*\)\s*$/, '').trim(),
+                bmr, bmrIsMeasured, activityKcal, totalKcal, adjustment, bf, bfTarget,
+                cutInfo, buildInfo, proteinG, proteinKcal, fatG, fatKcal, carbsG, carbsKcal
+            };
+
             el('res_prot_g').textContent = fmt(proteinG);
             el('res_prot_kcal').textContent = fmt(proteinKcal);
             el('res_fat_g').textContent = fmt(fatG);
@@ -5007,7 +5029,135 @@ const situationsDB = [
 
             recContainer.classList.remove('hidden');
         }
-    
+
+        /* ═════════ KALORIENEMPFEHLUNG ALS PDF / QR-CODE (CI by linzenich) ═════════ */
+
+        /* Gezielte Empfehlung je Ziel – Texte wie im Supplement-Bereich */
+        const PDF_SUPPLEMENTS = {
+            amino: { name: 'Aminosäuren', txt: 'Schützt Deine Muskulatur vor Abbau und beschleunigt die Regeneration nach dem Training spürbar.' },
+            creatine: { name: 'Kreatin Monohydrat', txt: 'Das am besten erforschte Supplement. Steigert nachweislich Deine Schnellkraft und Leistung.' },
+            omega3: { name: 'Omega-3 Fettsäuren', txt: 'Essentiell für Herz, Gehirn und Entzündungshemmung. Oft Mangelware in der normalen Ernährung.' }
+        };
+        const PDF_SUPPLEMENTS_BY_GOAL = { build: ['amino', 'creatine'], cut: ['amino', 'omega3'] };
+
+        /* Farben der Makro-Balken im Rechner (Tailwind blue-500 / yellow-500 / Markengrün) */
+        const MACRO_COLORS = { prot: '#2b7fff', fat: '#f0b100', carb: '#5cb85c' };
+
+        const BUILD_PHASE_WEEKS = 12; // Planungszeitraum der Aufbauphase im PDF
+
+        function calcPdfBody(c) {
+            const E = MemberPdf.esc;
+            const r = n => Math.round(n).toLocaleString('de-DE');
+            const d = date => date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const isBuild = c.goal === 'build';
+            const daily = c.bmr * c.pal;
+
+            // Deine Angaben
+            const facts = [c.female ? 'weiblich' : 'männlich', `${r(c.age)} Jahre`, `${r(c.height)} cm`, `${nf(c.weight, 1)} kg`];
+            if (c.pro && c.bf > 0) facts.push(`${nf(c.bf, 1)} % Körperfett`);
+            if (c.pro && c.buildInfo) facts.push(`Trainingsalter: ${c.buildInfo.label}`);
+            facts.push(`Aktivität: ${c.palLabel}`);
+
+            const card = (cap, num, txt, hl) => `<div class="card${hl ? ' hl' : ''}"><div class="cap">${cap}</div>
+                <div class="num">${num}<small>kcal</small></div><div class="txt">${txt}</div></div>`;
+
+            let html = MemberPdf.section('', `
+                <div class="p mut" style="margin-bottom:14px">Deine Angaben: ${E(facts.join(' · '))}</div>
+                <div class="g3">
+                    ${card('Grundumsatz', r(c.bmr), c.bmrIsMeasured ? 'gemessen per BIA – Dein Verbrauch in völliger Ruhe.' : 'verbraucht Dein Körper in völliger Ruhe.')}
+                    ${card('Tagesbedarf', r(daily), 'inklusive Alltag und Training – damit hältst Du Dein Gewicht.')}
+                    ${card('Dein Ziel', r(c.totalKcal), isBuild ? 'pro Tag für sauberen Muskelaufbau.' : 'pro Tag, um gezielt Fett zu verlieren.', true)}
+                </div>`);
+
+            // Detail: Zeitraum
+            if (c.pro) {
+                const today = new Date();
+                const tile = (cap, num, unit, txt) => `<div class="card"><div class="cap">${cap}</div>
+                    <div class="num">${num}${unit ? `<small>${unit}</small>` : ''}</div>${txt ? `<div class="txt">${txt}</div>` : ''}</div>`;
+                let tiles = '', note = '';
+                if (c.cutInfo && c.cutInfo.valid) {
+                    const i = c.cutInfo;
+                    tiles = tile('Zeitraum', `${i.weeks}`, i.weeks === 1 ? 'Woche' : 'Wochen', `${d(today)} – ${d(i.date)}`) +
+                        tile('Zielgewicht', nf(i.targetWeight, 1), 'kg', `bei ${nf(c.bfTarget, 1)} % Körperfett`) +
+                        tile('Abnahme', nf(i.weeklyLossStart, 2), 'kg/Woche', `insgesamt ${nf(i.lossTotal, 1)} kg`);
+                    note = `Von ${nf(c.bf, 1)} % auf ${nf(c.bfTarget, 1)} % Körperfett in rund ${nf(i.weeks / 4.345, 1)} Monaten. Weil das Defizit mit dem Gewicht sinkt, rechnen wir alle 4–6 Wochen gemeinsam nach.`;
+                } else if (c.cutInfo) {
+                    const i = c.cutInfo;
+                    tiles = tile('Tempo', fmtPace(i.pace), '% KG/Woche', '') +
+                        tile('Abnahme', nf(i.weeklyLossStart, 2), 'kg/Woche', `≈ ${nf(i.weeklyLossStart * 4.345, 1)} kg pro Monat`) +
+                        tile('Defizit', r(i.deficitStart), 'kcal/Tag', '');
+                    note = 'Den genauen Zeitraum bis zu Deinem Wunschgewicht legst Du mit Deinem Trainer anhand Deines Ziel-Körperfettanteils fest. Alle 4–6 Wochen rechnen wir gemeinsam nach.';
+                } else if (c.buildInfo) {
+                    const i = c.buildInfo;
+                    const end = new Date(today.getTime() + BUILD_PHASE_WEEKS * 7 * 86400000);
+                    tiles = tile('Zeitraum', `${BUILD_PHASE_WEEKS}`, 'Wochen', `${d(today)} – ${d(end)}`) +
+                        tile('Zunahme', nf(i.gainPerMonth, 2), 'kg/Monat', `≈ ${nf(i.gainPerWeek, 2)} kg pro Woche`) +
+                        tile('Nach 12 Wochen', '+' + nf(i.gainPerWeek * BUILD_PHASE_WEEKS, 1), 'kg', 'Zielwert auf der Waage');
+                    note = 'Wiege Dich 3× pro Woche morgens und betrachte den Wochenschnitt über 2–3 Wochen. Bleibt die Zunahme aus, heben wir den Überschuss um ca. 100 kcal an. Schneller zuzunehmen bringt kaum mehr Muskulatur, aber deutlich mehr Fett.';
+                }
+                html += MemberPdf.section('Dein Zeitraum', `<div class="g3">${tiles}</div>
+                    <p class="p" style="margin-top:12px">${E(note)}</p>`);
+            } else {
+                html += MemberPdf.section('', `<p class="p">${isBuild
+                    ? 'Iss an Trainings- und Ruhetagen ungefähr gleich viel. Wiege Dich einmal pro Woche morgens: Ein Plus von 0,25–0,5 kg pro Woche ist ideal.'
+                    : 'Iss an Trainings- und Ruhetagen ungefähr gleich viel. Wiege Dich einmal pro Woche morgens: Ein Minus von 0,5–1 % Deines Körpergewichts pro Woche ist ideal.'
+                } Tut sich zwei Wochen nichts, sprich mit Deinem Trainer über eine Anpassung.</p>`);
+            }
+
+            // Makronährstoffe – Farben wie im Kalorienrechner
+            const sum = c.proteinKcal + c.fatKcal + c.carbsKcal || 1;
+            const macros = [
+                { key: 'prot', name: 'Protein', g: c.proteinG, kcal: c.proteinKcal, txt: 'Wichtig für Muskelaufbau & Erhalt' },
+                { key: 'fat', name: 'Fette', g: c.fatG, kcal: c.fatKcal, txt: 'Für Hormone & Gesundheit' },
+                { key: 'carb', name: 'Kohlenhydrate', g: c.carbsG, kcal: c.carbsKcal, txt: 'Energie für Dein Training' }
+            ];
+            const bar = macros.map(m => `<div style="width:${(m.kcal / sum * 100).toFixed(2)}%;background:${MACRO_COLORS[m.key]}"></div>`).join('');
+            const items = macros.map(m => `<div>
+                <div style="display:flex;align-items:center;font-size:15px;line-height:20px;font-weight:600"><span class="dot" style="background:${MACRO_COLORS[m.key]}"></span>${m.name} · ${Math.round(m.kcal / sum * 100)} %</div>
+                <div class="num">${r(m.g)}<small>g</small></div>
+                <div class="txt mut">${r(m.kcal)} kcal · ${m.txt}</div></div>`).join('');
+            html += MemberPdf.section('Deine Makronährstoffe', `<div class="bar">${bar}</div><div class="g3">${items}</div>`);
+
+            // Supplements passend zum Ziel
+            const sups = PDF_SUPPLEMENTS_BY_GOAL[c.goal].map(k => PDF_SUPPLEMENTS[k]).map(s =>
+                `<div class="warm"><b>${E(s.name)}</b><div class="txt">${E(s.txt)}</div></div>`).join('');
+            html += MemberPdf.section('', `
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+                    <h2 style="margin:0">Passend zu Deinem Ziel</h2><div class="cap gold">Direkt im Club erhältlich</div></div>
+                <div class="g2">${sups}</div>`);
+
+            html += MemberPdf.coaching();
+            return html;
+        }
+
+        function exportCalcPDF(mode) {
+            if (!lastCalc) { alert('Bitte zuerst berechnen.'); return; }
+            const c = lastCalc;
+            const asQr = mode === 'qr';
+            const btn = el(asQr ? 'calc_btn_qr' : 'calc_btn_pdf');
+            const lbl = el(asQr ? 'calc_btn_qr_label' : 'calc_btn_pdf_label');
+            const prev = lbl.textContent;
+            btn.disabled = true; lbl.textContent = 'Erstelle PDF…';
+
+            const isBuild = c.goal === 'build';
+            const adj = Math.round(Math.abs(c.adjustment)).toLocaleString('de-DE');
+            const legal = (c.bmrIsMeasured ? '*Grundumsatz gemessen per BIA/InBody' : '*Grundumsatz geschätzt nach Mifflin-St Jeor') +
+                (c.pro ? ', Zielanpassung und Zeitprognose nach Eric Helms' : '') +
+                '. Alle Werte gerundet. Richtwerte für gesunde Erwachsene – kein Ersatz für ärztliche Beratung.';
+
+            MemberPdf.create({
+                eyebrow: `Deine Kalorienempfehlung · Ziel: ${isBuild ? 'Muskelaufbau' : 'Definition'}${c.pro ? ' · Detailanalyse' : ''}`,
+                headline: `${Math.round(c.totalKcal).toLocaleString('de-DE')} kcal pro Tag`,
+                sub: isBuild ? `Moderater Überschuss von +${adj} kcal über Deinem Tagesbedarf`
+                    : `Defizit von ${adj} kcal unter Deinem Tagesbedarf`,
+                body: calcPdfBody(c),
+                legal,
+                filename: `Kalorienempfehlung_${new Date().toISOString().slice(0, 10)}.pdf`,
+                title: 'Kalorienempfehlung',
+                mode: asQr ? 'qr' : 'download'
+            }).then(() => { btn.disabled = false; lbl.textContent = prev; });
+        }
+
 // ================= ALLTAGS-COACH (Situations-Guides) =================
 // Kachel-Übersicht aller Situationen aus situationsDB; ein Klick auf eine
 // Kachel öffnet den Guide mit Verhaltens-Tipps und fertigen Swaps.
@@ -5123,8 +5273,10 @@ function selectSituation(id) {
 }
     </script>
 
+<script src="vendor/html2canvas.min.js"></script>
 <script src="vendor/qrcode.js"></script>
 <script src="pdf-share.js"></script>
+<script src="member-pdf.js"></script>
 
 </body>
 

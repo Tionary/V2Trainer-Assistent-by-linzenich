@@ -238,11 +238,24 @@ body::after{width:420px;height:420px;bottom:-170px;right:-120px;background:radia
     padding:.75rem 1rem;font-size:.82rem;color:var(--mut);line-height:1.6;display:flex;gap:.6rem}
 .info-box .ms{font-size:1.1rem;color:var(--acc);flex-shrink:0;margin-top:.05rem}
 
+/* ─── BUTTONS (Plan weitergeben) ─── */
+.share-row{display:flex;flex-wrap:wrap;gap:.6rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.7rem 1.15rem;min-height:44px;
+    border-radius:.6rem;font-family:var(--font);font-size:.9rem;font-weight:700;
+    cursor:pointer;transition:all .15s;border:none;text-decoration:none;flex:1 1 9rem}
+.btn .ms{font-size:1.1rem}
+.btn:disabled{opacity:.65;cursor:wait}
+.btn:focus-visible{outline:2px solid var(--gold-lt);outline-offset:2px}
+.btn-primary{background:linear-gradient(160deg,#6cc56c,#4cae4c);color:#06210b;box-shadow:0 1px 0 rgba(255,255,255,.3) inset,0 6px 16px -6px rgba(92,184,92,.7)}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-outline{background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(0,0,0,.15));border:1px solid rgba(175,143,97,.35);color:var(--txt)}
+.btn-outline:hover{background:rgba(175,143,97,.1);border-color:rgba(216,184,137,.6)}
+
 /* ─── HIDDEN ─── */
 .hidden{display:none!important}
 
 /* ─── PRINT ─── */
-@media print{.topnav,.info-box,.ch-chev{display:none!important}body{background:#fff!important;color:#000!important}.card{border:1px solid #ccc!important;background:#fff!important}
+@media print{.topnav,.info-box,.ch-chev,.share-row{display:none!important}body{background:#fff!important;color:#000!important}.card{border:1px solid #ccc!important;background:#fff!important}
     .card--collapsible.collapsed>.card-body{display:block!important}}
 </style>
 </head>
@@ -414,6 +427,21 @@ body::after{width:420px;height:420px;bottom:-170px;right:-120px;background:radia
 
         <!-- Plan output -->
         <div id="plan-output" style="margin-top:1.5rem"><!-- filled by JS --></div>
+
+        <!-- Weitergeben: Text für Magicline, QR-Code und PDF fürs Mitglied -->
+        <div class="sec-sep"><span>Plan weitergeben</span></div>
+        <div class="share-row">
+            <button class="btn btn-primary" id="btn-copy" type="button" onclick="copyPlanText()"
+                title="Kurzer Text für die Übungsnotiz in Magicline">
+                <span class="ms" id="btn-copy-icon">content_copy</span> <span id="btn-copy-label">Text kopieren</span>
+            </button>
+            <button class="btn btn-outline" id="btn-qr" type="button" onclick="exportPlanPdf('qr')">
+                <span class="ms">qr_code_2</span> <span id="btn-qr-label">QR-Code</span>
+            </button>
+            <button class="btn btn-outline" id="btn-pdf" type="button" onclick="exportPlanPdf()">
+                <span class="ms">picture_as_pdf</span> <span id="btn-pdf-label">PDF</span>
+            </button>
+        </div>
 
     </div>
 </section>
@@ -696,11 +724,132 @@ function pctColor(pct){
     return 'var(--acc)';
 }
 
+/* ═════════ PLAN WEITERGEBEN ═════════ */
+
+/* Aktueller Plan inkl. Gewicht je Woche – dieselbe Rechnung wie renderPlan() */
+function currentPlan(){
+    const plan = (currentSchema === 'wave' ? getWavePlan : getStepPlan)();
+    const weeks = applyVary(plan.weeks).map(w => ({ ...w, kg: round25(orm * w.pct / 100) }));
+    return { ...plan, weeks };
+}
+
+/* Text für die Übungsnotiz in Magicline: eine Woche pro Zeile, kurz genug
+   für das schmale Kommentarfeld. Beispiel: "W1: 4x8 mit 112.5kg" */
+function planText(){
+    return currentPlan().weeks.map(w => `W${w.n}: ${w.sets}x${w.reps} mit ${w.kg}kg`).join('\n');
+}
+
+function copyToClipboard(text){
+    if(navigator.clipboard && window.isSecureContext){
+        return navigator.clipboard.writeText(text);
+    }
+    // Rückfallebene für ältere Tablets ohne Clipboard-API
+    return new Promise((resolve, reject) => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? resolve() : reject(new Error('copy failed'));
+    });
+}
+
+let copyTimer = null;
+function copyPlanText(){
+    if(!orm) return;
+    const label = document.getElementById('btn-copy-label');
+    const icon = document.getElementById('btn-copy-icon');
+    copyToClipboard(planText()).then(() => {
+        label.textContent = 'Kopiert!';
+        icon.textContent = 'check';
+    }).catch(() => {
+        label.textContent = 'Kopieren nicht möglich';
+        icon.textContent = 'error';
+    }).then(() => {
+        clearTimeout(copyTimer);
+        copyTimer = setTimeout(() => { label.textContent = 'Text kopieren'; icon.textContent = 'content_copy'; }, 2200);
+    });
+}
+
+const PLAN_PHASES = {
+    step: [
+        { cap:'Woche 1–2', name:'Aufbau',         txt:'Mehr Wiederholungen bei moderatem Gewicht – das Bewegungsmuster sitzt.' },
+        { cap:'Woche 3–4', name:'Steigerung',     txt:'Weniger Wiederholungen, dafür spürbar mehr Gewicht.' },
+        { cap:'Woche 5–6', name:'Intensivierung', txt:'Wenige, schwere Sätze – hier zeigt sich Dein Fortschritt.' },
+    ],
+    wave: [
+        { cap:'Woche 1–3', name:'Welle 1',        txt:'Von Volumen über Aufbau bis zum Peak: Das Gewicht steigt, die Wiederholungen sinken.' },
+        { cap:'Woche 4–6', name:'Welle 2',        txt:'Dieselbe Abfolge noch einmal – Du startest leichter als im Peak, aber schwerer als in Welle 1.' },
+        { cap:'Warum Wellen?', name:'Erholung',   txt:'Die leichtere Woche nach dem Peak lässt Dich regenerieren, damit Du danach höher einsteigst.' },
+    ],
+};
+
+function exportPlanPdf(mode){
+    if(!orm) return;
+    const asQr = mode === 'qr';
+    const btn = document.getElementById(asQr ? 'btn-qr' : 'btn-pdf');
+    const lbl = document.getElementById(asQr ? 'btn-qr-label' : 'btn-pdf-label');
+    const prev = lbl.textContent;
+    btn.disabled = true; lbl.textContent = 'Erstelle PDF…';
+
+    const E = MemberPdf.esc;
+    const plan = currentPlan();
+    const exercise = document.getElementById('inp-exercise').value.trim();
+    const nf = n => n.toLocaleString('de-DE', { maximumFractionDigits:1 });
+
+    const rows = plan.weeks.map(w => `
+        <div class="tr"><div><b>W${w.n}</b></div><div>${w.sets} × ${w.reps}</div>
+        <div class="kg">${nf(w.kg)} kg</div><div class="mut">${E(w.phase)}</div></div>`).join('');
+
+    const phases = PLAN_PHASES[currentSchema].map(p => `
+        <div class="warm"><div class="cap gold">${E(p.cap)}</div><b>${E(p.name)}</b>
+        <div class="txt">${E(p.txt)}</div></div>`).join('');
+
+    const held = [];
+    if(!vary.weight) held.push('Gewicht');
+    if(!vary.reps)   held.push('Wiederholungen');
+    if(!vary.sets)   held.push('Sätze');
+    const heldTip = held.length
+        ? `<li>In diesem Plan bleiben konstant: ${E(held.join(', '))}. Nur die übrigen Größen verändern sich.</li>` : '';
+
+    const body =
+        MemberPdf.section('Dein Wochenplan', `<div class="tbl">
+            <div class="tr th"><div>Woche</div><div>Sätze × Wdh</div><div>Gewicht</div><div>Phase</div></div>${rows}</div>`) +
+        MemberPdf.section('So funktioniert Dein Plan', `
+            <p class="p">${E(plan.desc)} So gewöhnt sich Dein Körper schrittweise an höhere Lasten – ohne Sprünge, die Technik oder Gelenke überfordern.</p>
+            <div class="g3" style="margin-top:14px">${phases}</div>
+            <ul class="tips">
+                ${heldTip}
+                <li>Technik vor Gewicht: Schaffst Du die Wiederholungen nicht sauber, bleib beim Gewicht der Vorwoche.</li>
+                <li>Nach Woche 6 bestimmen wir Deinen One Rep Max gemeinsam neu – sprich Deinen Trainer an.</li>
+            </ul>`);
+
+    const weeksTag = currentSchema === 'wave' ? '6 Wochen · 2 Wellen' : '6 Wochen';
+    MemberPdf.create({
+        eyebrow: `Dein Progressionsplan · ${weeksTag} · ${plan.name}`,
+        headline: exercise || 'Dein Progressionsplan',
+        sub: `Ausgangswert One Rep Max: ${nf(round25(orm))} kg`,
+        body,
+        legal: '*Gewichte berechnet aus Deinem One Rep Max (Epley-Formel) und auf 2,5 kg gerundet. Richtwerte – Dein Trainer passt sie bei Bedarf an.',
+        filename: `Progressionsplan_${MemberPdf.safeName(exercise, 'Uebung')}_${new Date().toISOString().slice(0,10)}.pdf`,
+        title: exercise ? `Progressionsplan ${exercise}` : 'Progressionsplan',
+        mode: asQr ? 'qr' : 'download',
+    }).then(() => { btn.disabled = false; lbl.textContent = prev; });
+}
+
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
     selectGoal('muskelaufbau');
     selectSchema('step');
 });
 </script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="pdf-share.js"></script>
+<script src="member-pdf.js"></script>
 </body>
 </html>
