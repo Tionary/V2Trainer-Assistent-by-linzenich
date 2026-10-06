@@ -57,7 +57,7 @@ window.MemberPdf = (function () {
     '.cap.gold{color:#7d6239}',
     '.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}',
     '.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}',
-    '.card{border:1px solid #d9d2c5;border-radius:12px;padding:14px 18px}',
+    '.card{border:1px solid #d9d2c5;border-radius:12px;padding:13px 18px}',
     '.card.hl{background:#144a3c;border-color:#144a3c;color:#fff}',
     '.card.hl .cap{color:#fff}',
     '.num{font-size:28px;line-height:34px;font-weight:700;margin-top:2px}',
@@ -88,18 +88,21 @@ window.MemberPdf = (function () {
     '.mpct{width:40px;text-align:right;font-size:15px;line-height:24px;color:#6b665e}',
     '.mval{text-align:right;font-size:15px;line-height:24px;color:#6b665e}',
     '.mval b{font-size:20px;color:#1a1a1a;margin-right:6px}',
-    '.coach{margin:20px 48px 0;background:#af8f61;color:#1a1a1a;border-radius:12px;padding:16px 22px}',
+    '.coach{margin:20px 48px 0;background:#af8f61;color:#1a1a1a;border-radius:12px;padding:13px 22px}',
     '.coach .p{font-size:15px;line-height:22px}',
-    '.coach .cap{color:#1a1a1a;font-size:16px;line-height:20px;margin-bottom:6px}',
+    '.coach .cap{color:#1a1a1a;font-size:16px;line-height:20px;margin-bottom:4px}',
+    '.coach .next{font-size:21px;line-height:26px;font-weight:700;margin-bottom:2px}',
     '.foot{margin-top:auto;padding:18px 48px 20px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px}',
     '.legal{font-size:13px;line-height:18px;color:#6b665e;max-width:520px}',
     '.claim{font-size:17px;font-weight:700;color:#7d6239;white-space:nowrap}'
   ]).join('\n');
 
-  var COACHING_TEXT = 'Wenn Dich das Thema Ernährung interessiert, empfehlen wir Dir unser ' +
+  var COACHING_INTRO = 'Wenn Dich das Thema Ernährung interessiert, empfehlen wir Dir unser ' +
     'Ernährungscoaching, das monatlich mit verschiedenen Themen wie Muskelaufbau, ' +
-    'Gewichtsmanagement etc. stattfindet. Frag einfach Deine Trainer vor Ort, wann das ' +
-    'nächste Coaching stattfindet, und lass Dich eintragen.';
+    'Gewichtsmanagement etc. stattfindet. ';
+  var COACHING_ASK = 'Frag einfach Deine Trainer vor Ort, wann das nächste Coaching ' +
+    'stattfindet, und lass Dich eintragen.';
+  var COACHING_SIGNUP = 'Lass Dich vor Ort eintragen.';
 
   /* ─────────────────────────── Bausteine ─────────────────────────── */
 
@@ -113,9 +116,18 @@ window.MemberPdf = (function () {
     return '<div class="sec">' + (title ? '<h2>' + esc(title) + '</h2>' : '') + inner + '</div>';
   }
 
-  function coaching() {
+  /**
+   * Hinweis aufs Ernährungscoaching. Mit `next` (z. B. „Gewichtsmanagement bei
+   * Simon am Do., 08.10.“) steht der konkrete Termin groß im Kasten.
+   */
+  function coaching(next) {
+    if (next) {
+      return '<div class="coach"><div class="cap">Nächstes Ernährungscoaching</div>' +
+        '<div class="next">' + esc(next) + '</div>' +
+        '<div class="p">' + esc(COACHING_INTRO + COACHING_SIGNUP) + '</div></div>';
+    }
     return '<div class="coach"><div class="cap">Ernährungscoaching · 1× im Monat</div>' +
-      '<div class="p">' + esc(COACHING_TEXT) + '</div></div>';
+      '<div class="p">' + esc(COACHING_INTRO + COACHING_ASK) + '</div></div>';
   }
 
   function pageHtml(o) {

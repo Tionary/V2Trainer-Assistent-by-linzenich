@@ -5034,9 +5034,9 @@ const situationsDB = [
 
         /* Gezielte Empfehlung je Ziel – Texte aus dem Supplement-Bereich, fürs PDF gekürzt */
         const PDF_SUPPLEMENTS = {
-            amino: { name: 'Aminosäuren', txt: 'Schützt Deine Muskulatur und beschleunigt die Regeneration.' },
-            creatine: { name: 'Kreatin Monohydrat', txt: 'Bestens erforscht – steigert Schnellkraft und Leistung.' },
-            omega3: { name: 'Omega-3 Fettsäuren', txt: 'Für Herz, Gehirn und Entzündungshemmung – oft Mangelware.' }
+            amino: { name: 'Aminosäuren', txt: 'Schützt die Muskeln, fördert die Regeneration.' },
+            creatine: { name: 'Kreatin Monohydrat', txt: 'Mehr Schnellkraft und Leistung.' },
+            omega3: { name: 'Omega-3 Fettsäuren', txt: 'Für Herz, Gehirn und Entzündungshemmung.' }
         };
         const PDF_SUPPLEMENTS_BY_GOAL = { build: ['amino', 'creatine'], cut: ['amino', 'omega3'] };
 
@@ -5054,7 +5054,7 @@ const situationsDB = [
             return 'Deine Angaben: ' + facts.join(' · ');
         }
 
-        function calcPdfBody(c) {
+        function calcPdfBody(c, nextCoaching) {
             const E = MemberPdf.esc;
             const r = n => Math.round(n).toLocaleString('de-DE');
             const d = date => date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -5129,12 +5129,93 @@ const situationsDB = [
                     <h2 style="margin:0">Passend zu Deinem Ziel</h2><div class="cap gold">Direkt im Club erhältlich</div></div>
                 <div class="g2">${sups}</div>`);
 
-            html += MemberPdf.coaching();
+            html += MemberPdf.coaching(nextCoaching);
             return html;
         }
 
+        /* ── Nächstes Ernährungscoaching: vor dem PDF abfragen ──
+           Das Coaching ist einmal im Monat und für alle gleich, daher merkt sich
+           das Gerät die letzten Angaben. Ein Datum in der Vergangenheit verfällt. */
+        const COACHING_KEY = 'linzenich_next_coaching';
+        let coachingMode = null;
+
+        function loadCoaching() {
+            let v = null;
+            try { v = JSON.parse(localStorage.getItem(COACHING_KEY) || 'null'); } catch (e) { }
+            if (!v) return { topic: '', coach: '', date: '', time: '' };
+            const today = new Date().toISOString().slice(0, 10);
+            if (v.date && v.date < today) return { topic: '', coach: '', date: '', time: '' };
+            return { topic: v.topic || '', coach: v.coach || '', date: v.date || '', time: v.time || '' };
+        }
+
+        function readCoachingForm() {
+            return {
+                topic: el('cc_topic').value.trim(), coach: el('cc_coach').value.trim(),
+                date: el('cc_date').value, time: el('cc_time').value
+            };
+        }
+
+        /* „Gewichtsmanagement bei Simon am Do., 08.10. um 18:00 Uhr“ */
+        function coachingLine(v) {
+            const parts = [];
+            if (v.topic) parts.push(v.topic);
+            if (v.coach) parts.push(`bei ${v.coach}`);
+            if (v.date) {
+                const day = new Date(v.date + 'T00:00:00');
+                if (!isNaN(day)) parts.push(`am ${day.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}`);
+            }
+            if (v.time) parts.push(`um ${v.time} Uhr`);
+            if (!parts.length) return '';
+            const line = parts.join(' ');
+            return line.charAt(0).toUpperCase() + line.slice(1);
+        }
+
+        function updateCoachingPreview() {
+            const line = coachingLine(readCoachingForm());
+            el('cc_preview').textContent = line
+                ? `Im PDF: „${line}“`
+                : 'Ohne Angaben steht im PDF der allgemeine Hinweis auf das monatliche Coaching.';
+        }
+
+        function openCoachingDialog(mode) {
+            coachingMode = mode;
+            const v = loadCoaching();
+            el('cc_topic').value = v.topic; el('cc_coach').value = v.coach;
+            el('cc_date').value = v.date; el('cc_time').value = v.time;
+            el('cc_submit').textContent = mode === 'qr' ? 'QR-Code erstellen' : 'PDF erstellen';
+            updateCoachingPreview();
+            el('cc_dialog').dataset.open = 'true';
+            el('cc_topic').focus();
+        }
+
+        function closeCoachingDialog() {
+            el('cc_dialog').dataset.open = 'false';
+            coachingMode = null;
+        }
+
+        function submitCoachingDialog(e, skip) {
+            if (e) e.preventDefault();
+            const mode = coachingMode;
+            let next = '';
+            if (!skip) {
+                const v = readCoachingForm();
+                try { localStorage.setItem(COACHING_KEY, JSON.stringify(v)); } catch (err) { }
+                next = coachingLine(v);
+            }
+            closeCoachingDialog();
+            buildCalcPDF(mode, next);
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && el('cc_dialog') && el('cc_dialog').dataset.open === 'true') closeCoachingDialog();
+        });
+
         function exportCalcPDF(mode) {
             if (!lastCalc) { alert('Bitte zuerst berechnen.'); return; }
+            openCoachingDialog(mode === 'qr' ? 'qr' : 'download');
+        }
+
+        function buildCalcPDF(mode, nextCoaching) {
             const c = lastCalc;
             const asQr = mode === 'qr';
             const btn = el(asQr ? 'calc_btn_qr' : 'calc_btn_pdf');
@@ -5154,7 +5235,7 @@ const situationsDB = [
                 sub: isBuild ? `Moderater Überschuss von +${adj} kcal über Deinem Tagesbedarf`
                     : `Defizit von ${adj} kcal unter Deinem Tagesbedarf`,
                 facts: calcPdfFacts(c),
-                body: calcPdfBody(c),
+                body: calcPdfBody(c, nextCoaching),
                 legal,
                 filename: `Kalorienempfehlung_${new Date().toISOString().slice(0, 10)}.pdf`,
                 title: 'Kalorienempfehlung',
@@ -5276,6 +5357,77 @@ function selectSituation(id) {
     detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
     </script>
+
+<!-- ══ Dialog: nächstes Ernährungscoaching fürs Kalorien-PDF ══ -->
+<style>
+    .cc-overlay{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;
+        padding:1.25rem;background:rgba(4,14,11,.8);backdrop-filter:blur(6px);font-family:'Source Sans 3',ui-sans-serif,system-ui,sans-serif}
+    .cc-overlay[data-open="true"]{display:flex}
+    .cc-modal{width:min(440px,100%);max-height:92vh;overflow-y:auto;border-radius:1.1rem;padding:1.5rem;color:#f2efe8;
+        background:linear-gradient(158deg,#1c5645 0%,#154a3b 46%,#0f382d 100%);border:1px solid rgba(216,184,137,.35);
+        box-shadow:0 30px 60px -20px rgba(0,0,0,.85)}
+    .cc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1.1rem}
+    .cc-title{font-size:1.15rem;font-weight:700;line-height:1.3}
+    .cc-sub{font-size:.82rem;line-height:1.5;color:#9fb3aa;margin-top:.3rem}
+    .cc-close{font-family:inherit;font-size:1.6rem;line-height:1;color:#9fb3aa;background:transparent;border:0;cursor:pointer;
+        padding:.1rem .4rem;border-radius:.4rem;min-width:44px;min-height:44px}
+    .cc-close:hover{color:#f2efe8}
+    .cc-field{margin-bottom:.9rem}
+    .cc-field label{display:block;font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#9fb3aa;margin-bottom:.4rem}
+    .cc-field input{width:100%;font-family:inherit;font-size:1rem;color:#f2efe8;padding:.7rem .85rem;border-radius:.6rem;
+        background:rgba(0,0,0,.32);border:1px solid rgba(216,184,137,.28);color-scheme:dark}
+    .cc-field input:focus{outline:none;border-color:#d8b889}
+    .cc-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+    .cc-preview{font-size:.85rem;line-height:1.5;color:#d8b889;background:rgba(0,0,0,.25);border-radius:.6rem;padding:.7rem .85rem;margin:.25rem 0 1.1rem}
+    .cc-actions{display:flex;gap:.6rem;flex-wrap:wrap}
+    .cc-btn{flex:1 1 8rem;min-height:46px;font-family:inherit;font-size:.92rem;font-weight:700;border-radius:.6rem;cursor:pointer;
+        display:inline-flex;align-items:center;justify-content:center;gap:.4rem}
+    .cc-btn:focus-visible,.cc-close:focus-visible{outline:2px solid #d8b889;outline-offset:2px}
+    .cc-btn--primary{background:#5cb85c;color:#fff;border:0}
+    .cc-btn--primary:hover{background:#4cae4c}
+    .cc-btn--ghost{background:transparent;color:#f2efe8;border:1px solid rgba(175,143,97,.45)}
+    .cc-btn--ghost:hover{background:rgba(175,143,97,.12)}
+</style>
+<div id="cc_dialog" class="cc-overlay" role="dialog" aria-modal="true" aria-labelledby="cc_title"
+    onclick="if (event.target === this) closeCoachingDialog()">
+    <form class="cc-modal" onsubmit="submitCoachingDialog(event, false)">
+        <div class="cc-head">
+            <div>
+                <div class="cc-title" id="cc_title">Nächstes Ernährungscoaching</div>
+                <div class="cc-sub">Der Termin steht groß im PDF – so wird aus dem Hinweis eine konkrete Einladung.
+                    Alle Felder sind freiwillig.</div>
+            </div>
+            <button type="button" class="cc-close" aria-label="Schließen" onclick="closeCoachingDialog()">×</button>
+        </div>
+        <div class="cc-field">
+            <label for="cc_topic">Thema</label>
+            <input id="cc_topic" list="cc_topics" autocomplete="off" placeholder="z. B. Gewichtsmanagement" oninput="updateCoachingPreview()">
+            <datalist id="cc_topics">
+                <option value="Muskelaufbau"></option>
+                <option value="Gewichtsmanagement"></option>
+            </datalist>
+        </div>
+        <div class="cc-field">
+            <label for="cc_coach">Trainer</label>
+            <input id="cc_coach" autocomplete="off" placeholder="z. B. Simon" oninput="updateCoachingPreview()">
+        </div>
+        <div class="cc-grid">
+            <div class="cc-field">
+                <label for="cc_date">Datum</label>
+                <input type="date" id="cc_date" oninput="updateCoachingPreview()">
+            </div>
+            <div class="cc-field">
+                <label for="cc_time">Uhrzeit</label>
+                <input type="time" id="cc_time" oninput="updateCoachingPreview()">
+            </div>
+        </div>
+        <div class="cc-preview" id="cc_preview" aria-live="polite"></div>
+        <div class="cc-actions">
+            <button type="button" class="cc-btn cc-btn--ghost" onclick="submitCoachingDialog(null, true)">Ohne Termin</button>
+            <button type="submit" class="cc-btn cc-btn--primary" id="cc_submit">QR-Code erstellen</button>
+        </div>
+    </form>
+</div>
 
 <script src="vendor/html2canvas.min.js"></script>
 <script src="vendor/qrcode.js"></script>
