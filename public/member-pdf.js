@@ -39,16 +39,17 @@ window.MemberPdf = (function () {
     "html,body{margin:0;padding:0;background:#fff}",
     ".pg{width:794px;min-height:1123px;display:flex;flex-direction:column;background:#fff;color:#1a1a1a;",
     "  font-family:'" + FONT + "','Source Sans Pro',system-ui,sans-serif}",
-    '.top{display:flex;justify-content:space-between;align-items:center;padding:34px 48px 26px}',
-    '.logo{height:60px;width:auto;display:block}',
+    '.top{display:flex;justify-content:space-between;align-items:center;padding:20px 48px 14px}',
+    '.logo{height:52px;width:auto;display:block}',
     '.meta{text-align:right;font-size:13px;line-height:18px;color:#6b665e}',
     '.band{background:#af8f61;color:#1a1a1a;padding:10px 48px;font-size:16px;line-height:20px;font-weight:600;',
     '  letter-spacing:.02em;text-transform:uppercase}',
-    '.hero{background:#144a3c;color:#fff;padding:22px 48px 26px}',
-    '.hero h1{margin:0;font-size:52px;line-height:58px;font-weight:700;text-transform:uppercase}',
-    '.hero p{margin:6px 0 0;font-size:17px;line-height:26px}',
-    '.sec{padding:26px 48px 0}',
-    '.sec h2{margin:0 0 12px;font-size:24px;line-height:30px;font-weight:600}',
+    '.hero{background:#144a3c;color:#fff;padding:18px 48px 20px}',
+    '.hero h1{margin:0;font-size:46px;line-height:52px;font-weight:700;text-transform:uppercase}',
+    '.hero p{margin:4px 0 0;font-size:17px;line-height:24px}',
+    '.hero .facts{margin-top:6px;font-size:14px;line-height:20px;color:#e3ece8}',
+    '.sec{padding:16px 48px 0}',
+    '.sec h2{margin:0 0 10px;font-size:22px;line-height:28px;font-weight:600}',
     '.p{margin:0;font-size:16px;line-height:24px}',
     '.p+.p{margin-top:8px}',
     '.mut{color:#6b665e}',
@@ -56,13 +57,13 @@ window.MemberPdf = (function () {
     '.cap.gold{color:#7d6239}',
     '.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}',
     '.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}',
-    '.card{border:1px solid #d9d2c5;border-radius:12px;padding:16px 20px}',
+    '.card{border:1px solid #d9d2c5;border-radius:12px;padding:14px 18px}',
     '.card.hl{background:#144a3c;border-color:#144a3c;color:#fff}',
     '.card.hl .cap{color:#fff}',
-    '.num{font-size:30px;line-height:36px;font-weight:700;margin-top:2px}',
+    '.num{font-size:28px;line-height:34px;font-weight:700;margin-top:2px}',
     '.num small{font-size:16px;font-weight:600;margin-left:4px}',
     '.txt{font-size:15px;line-height:21px;margin-top:2px}',
-    '.warm{background:#f7f3ec;border-radius:12px;padding:16px 18px}',
+    '.warm{background:#f7f3ec;border-radius:12px;padding:14px 18px}',
     '.warm b{display:block;font-size:17px;line-height:22px;margin:2px 0 4px}',
     '.tbl{border:1px solid #d9d2c5;border-radius:12px;overflow:hidden}',
     '.tr{display:grid;grid-template-columns:96px 1fr 1fr 1.5fr;align-items:center;padding:11px 20px;',
@@ -72,11 +73,25 @@ window.MemberPdf = (function () {
     '.tr .kg{font-size:20px;font-weight:700}',
     'ul.tips{margin:12px 0 0;padding-left:20px;font-size:16px;line-height:24px}',
     'ul.tips li+li{margin-top:4px}',
-    '.bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:#d9d2c5;margin-bottom:14px}',
-    '.dot{display:inline-block;flex:none;width:12px;height:12px;border-radius:3px;margin-right:8px;position:relative;top:9px}', // gleicht den Textversatz von html2canvas aus
-    '.coach{margin:26px 48px 0;background:#af8f61;color:#1a1a1a;border-radius:12px;padding:20px 24px}',
+    // Kennzahlen in einer Leiste (z. B. Zeitraum)
+    '.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #d9d2c5;border-radius:12px;overflow:hidden}',
+    '.strip>div{padding:12px 18px}',
+    '.strip>div+div{border-left:1px solid #d9d2c5}',
+    // Makro-Zeilen: Name | eigener Balken mit Anteil | Menge – die Werte stehen am Balken
+    '.mrow{display:grid;grid-template-columns:150px minmax(0,1fr) 190px;column-gap:20px;align-items:start;padding:8px 0;border-top:1px solid #d9d2c5}',
+    '.mrow:first-child{border-top:0;padding-top:2px}',
+    '.mname{font-size:17px;line-height:24px;font-weight:700}',
+    '.mbar{display:flex;align-items:flex-start;gap:12px}',
+    // margin-top gleicht den Textversatz von html2canvas aus, damit Balken und Text auf einer Höhe stehen
+    '.track{flex:1;height:10px;border-radius:5px;background:#eee8dc;overflow:hidden;margin-top:18px}',
+    '.fill{height:10px;border-radius:5px}',
+    '.mpct{width:40px;text-align:right;font-size:15px;line-height:24px;color:#6b665e}',
+    '.mval{text-align:right;font-size:15px;line-height:24px;color:#6b665e}',
+    '.mval b{font-size:20px;color:#1a1a1a;margin-right:6px}',
+    '.coach{margin:20px 48px 0;background:#af8f61;color:#1a1a1a;border-radius:12px;padding:16px 22px}',
+    '.coach .p{font-size:15px;line-height:22px}',
     '.coach .cap{color:#1a1a1a;font-size:16px;line-height:20px;margin-bottom:6px}',
-    '.foot{margin-top:auto;padding:26px 48px 30px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px}',
+    '.foot{margin-top:auto;padding:18px 48px 20px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px}',
     '.legal{font-size:13px;line-height:18px;color:#6b665e;max-width:520px}',
     '.claim{font-size:17px;font-weight:700;color:#7d6239;white-space:nowrap}'
   ]).join('\n');
@@ -109,7 +124,8 @@ window.MemberPdf = (function () {
       '<div class="top"><img class="logo" src="/by-linzenich-logo.png" alt="by linzenich – Mehr als Fitness!">' +
       '<div class="meta">Erstellt am ' + date + '</div></div>' +
       '<div class="band">' + esc(o.eyebrow) + '</div>' +
-      '<div class="hero"><h1>' + esc(o.headline) + '</h1>' + (o.sub ? '<p>' + esc(o.sub) + '</p>' : '') + '</div>' +
+      '<div class="hero"><h1>' + esc(o.headline) + '</h1>' + (o.sub ? '<p>' + esc(o.sub) + '</p>' : '') +
+      (o.facts ? '<div class="facts">' + esc(o.facts) + '</div>' : '') + '</div>' +
       o.body +
       '<div class="foot"><div class="legal">' + esc(o.legal || '') + '</div>' +
       '<div class="claim">Mehr als Fitness!</div></div>' +
