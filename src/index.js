@@ -5,24 +5,50 @@
  *
  *   Browser ──▶ Worker (diese Datei)
  *                 │
- *                 ├── /login          → Anmeldeformular, Passwortprüfung
- *                 ├── /logout         → Cookie löschen
+ *                 ├── /login          → Anmeldeseite (Microsoft-Knopf oder Passwortfeld)
+ *                 ├── /auth/start     → weiter zur Microsoft-Anmeldung
+ *                 ├── /auth/callback  → Rückkehr von Microsoft, Sitzung ausstellen
+ *                 ├── /logout         → Cookie löschen (und bei Microsoft abmelden)
+ *                 ├── /abgemeldet     → Bestätigung nach der Abmeldung
+ *                 ├── /api/me         → wer ist angemeldet?
  *                 ├── /api/share      → befristeten QR-Link erzeugen (angemeldet)
  *                 ├── /s/<token>      → eine PDF ohne Anmeldung ausliefern
  *                 └── alles andere    → nur mit gültigem Cookie an public/
  *
  * Weil in wrangler.jsonc "run_worker_first": true gesetzt ist, kommt KEINE
  * Datei aus public/ am Worker vorbei.
+ *
+ * Zwei Anmeldearten:
+ *   • Microsoft (Entra ID) – aktiv, sobald ENTRA_TENANT_ID und ENTRA_CLIENT_ID
+ *     gesetzt sind. Jede Person meldet sich mit ihrem Firmenkonto an.
+ *   • Team-Passwort – der bisherige Weg, solange Entra nicht eingerichtet ist.
  */
 import { renderLoginPage } from './login-page.js';
 import {
+  AUTH_COOKIE_NAME,
   COOKIE_NAME,
+  createAuthFlowToken,
   createSessionToken,
   createShareToken,
+  createUserSessionToken,
+  verifyAuthFlowToken,
   verifySessionToken,
   verifyShareToken,
+  verifyUserSessionToken,
 } from './tokens.js';
 import { passwordMatches } from './crypto.js';
+import {
+  EntraError,
+  GUID_PATTERN,
+  authorizeUrl,
+  createAuthRequest,
+  describeMicrosoftError,
+  logoutUrl,
+  redeemCode,
+} from './entra.js';
+
+/** So lange darf zwischen "Anmelden" und der Rückkehr von Microsoft liegen. */
+const AUTH_FLOW_TTL_SECONDS = 600;
 
 /**
  * Dateien, die auch ohne Anmeldung nötig sind – sie tragen keine Inhalte.
@@ -62,7 +88,9 @@ const SECURITY_HEADERS = {
   'Content-Security-Policy': [
     "default-src 'self'",
     "base-uri 'none'",
-    "form-action 'self'",
+    // Die Abmeldung leitet nach dem Absenden zu Microsoft weiter; auch diese
+    // Weiterleitung muss form-action erlauben.
+    "form-action 'self' https://login.microsoftonline.com",
     "frame-ancestors 'none'",
     // Die Module bringen ihre Skripte und Styles inline mit.
     "script-src 'self' 'unsafe-inline'",
@@ -121,14 +149,28 @@ async function route(request, env, url, config) {
   if (path.startsWith('/s/')) return handleShareLink(request, env, url, config);
 
   if (path === '/login') return handleLogin(request, env, url, config);
-  if (path === '/logout') return handleLogout(request);
+  if (path === '/auth/start') return handleAuthStart(request, url, config);
+  if (path === '/auth/callback') return handleAuthCallback(request, url, config);
+  if (path === '/abgemeldet') return handleSignedOut(url, config);
+  if (path === '/logout') return handleLogout(request, url, config);
   if (path === '/robots.txt') {
     return new Response('User-agent: *\nDisallow: /\n', {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   }
 
-  const signedIn = await isSignedIn(request, config);
+  const session = await readSession(request, config);
+  const signedIn = Boolean(session);
+
+  if (path === '/api/me') {
+    if (!signedIn) return jsonResponse({ error: 'Nicht angemeldet' }, 401);
+    return jsonResponse({
+      modus: config.mode,
+      name: session.user?.name || null,
+      benutzer: session.user?.username || null,
+      rollen: session.user?.roles || [],
+    });
+  }
 
   if (path === '/api/share') {
     if (!signedIn) return jsonResponse({ error: 'Nicht angemeldet' }, 401);
@@ -150,9 +192,14 @@ async function route(request, env, url, config) {
 async function handleLogin(request, env, url, config) {
   const next = safeNext(url.searchParams.get('next'));
 
+  if (config.mode === 'entra') {
+    if (await readSession(request, config)) return redirect(next);
+    return htmlResponse(renderLoginPage({ mode: 'microsoft', next }));
+  }
+
   if (request.method !== 'POST') {
     // Wer schon angemeldet ist, braucht das Formular nicht.
-    if (await isSignedIn(request, config)) return redirect(next);
+    if (await readSession(request, config)) return redirect(next);
     return htmlResponse(renderLoginPage({ next }));
   }
 
@@ -183,17 +230,134 @@ async function handleLogin(request, env, url, config) {
   return response;
 }
 
-function handleLogout(request) {
+/** Schickt den Browser zur Microsoft-Anmeldung. */
+async function handleAuthStart(request, url, config) {
+  if (config.mode !== 'entra') return redirect('/login');
+  if (request.method !== 'GET') return redirect('/login');
+
+  const next = safeNext(url.searchParams.get('next'));
+  const auth = await createAuthRequest();
+  const flowToken = await createAuthFlowToken(
+    config.sessionSecret,
+    { s: auth.state, n: auth.nonce, v: auth.verifier, x: next },
+    AUTH_FLOW_TTL_SECONDS,
+  );
+
+  const response = redirect(authorizeUrl(config.entra, callbackUrl(url), auth));
+  response.headers.append('Set-Cookie', authFlowCookie(flowToken, AUTH_FLOW_TTL_SECONDS));
+  return response;
+}
+
+/** Rückkehr von Microsoft: Code einlösen, prüfen, Sitzung ausstellen. */
+async function handleAuthCallback(request, url, config) {
+  if (config.mode !== 'entra') return redirect('/login');
+
+  const fail = (message, status = 401) => {
+    const response = htmlResponse(renderLoginPage({ mode: 'microsoft', error: message }), status);
+    response.headers.append('Set-Cookie', authFlowCookie('', 0));
+    return response;
+  };
+
+  const params = url.searchParams;
+  if (params.get('error')) {
+    const description = params.get('error_description') || '';
+    if (params.get('error') === 'access_denied' && !/AADSTS/.test(description)) {
+      return fail('Die Anmeldung wurde abgebrochen.');
+    }
+    return fail(describeMicrosoftError(description), 403);
+  }
+
+  const flow = await verifyAuthFlowToken(
+    config.sessionSecret,
+    readCookie(request.headers.get('Cookie'), AUTH_COOKIE_NAME),
+  );
+  const code = params.get('code');
+  if (!flow || !code || typeof flow.s !== 'string' || flow.s !== params.get('state')) {
+    return fail(
+      'Die Anmeldung ist abgelaufen oder wurde in einem anderen Fenster gestartet. Bitte noch einmal auf „Mit Microsoft anmelden" tippen.',
+      400,
+    );
+  }
+
+  let user;
+  try {
+    user = await redeemCode(config.entra, {
+      code,
+      redirectUri: callbackUrl(url),
+      verifier: flow.v,
+      nonce: flow.n,
+    });
+  } catch (error) {
+    if (error instanceof EntraError) {
+      console.warn('Microsoft-Anmeldung abgelehnt:', error.code, error.message);
+      return fail(error.message);
+    }
+    console.error('Microsoft-Anmeldung fehlgeschlagen:', error);
+    return fail('Microsoft ist gerade nicht erreichbar. Bitte in einer Minute erneut versuchen.', 502);
+  }
+
+  if (!hasAllowedRole(user, config)) {
+    console.warn('Anmeldung ohne passende Rolle:', user.username, user.roles);
+    return fail(
+      `Das Konto ${user.username || ''} ist bei Microsoft angemeldet, hat aber keine Rolle für den Trainer-Assistenten. ` +
+        'Bitte wende Dich an die Personal-Training-Leitung.',
+      403,
+    );
+  }
+
+  const token = await createUserSessionToken(config.sessionSecret, user, config.sessionTtlHours);
+  const response = redirect(safeNext(flow.x));
+  response.headers.append('Set-Cookie', sessionCookie(token, config.sessionTtlHours * 3600));
+  response.headers.append('Set-Cookie', authFlowCookie('', 0));
+  return response;
+}
+
+function handleSignedOut(url, config) {
+  if (config.mode !== 'entra') return redirect('/login');
+  return htmlResponse(
+    renderLoginPage({ mode: 'microsoft', notice: 'Du bist abgemeldet – hier und bei Microsoft.' }),
+  );
+}
+
+function handleLogout(request, url, config) {
   if (request.method !== 'POST') return redirect('/');
-  const response = redirect('/login');
+  // Bei Microsoft-Anmeldung auch dort abmelden. Sonst meldet "Anmelden" auf
+  // einem gemeinsam genutzten Tablet ohne Rückfrage wieder dieselbe Person an.
+  const response = redirect(
+    config.mode === 'entra' ? logoutUrl(config.entra, `${url.origin}/abgemeldet`) : '/login',
+  );
   response.headers.set('Set-Cookie', sessionCookie('', 0));
   return response;
 }
 
-async function isSignedIn(request, config) {
+/**
+ * Liest die Sitzung aus dem Cookie.
+ * Rückgabe: { user } bei gültiger Sitzung (user ist im Passwort-Modus null),
+ * sonst null.
+ */
+async function readSession(request, config) {
   const token = readCookie(request.headers.get('Cookie'), COOKIE_NAME);
-  if (!token) return false;
-  return verifySessionToken(config.sessionSecret, config.appPassword, token);
+  if (!token) return null;
+
+  if (config.mode === 'entra') {
+    const user = await verifyUserSessionToken(config.sessionSecret, token);
+    // Die Rolle wird bei jeder Anfrage erneut geprüft: Wird die Liste der
+    // erlaubten Rollen verkleinert, wirkt das sofort.
+    return user && hasAllowedRole(user, config) ? { user } : null;
+  }
+
+  return (await verifySessionToken(config.sessionSecret, config.appPassword, token))
+    ? { user: null }
+    : null;
+}
+
+function hasAllowedRole(user, config) {
+  if (config.allowedRoles === null) return true; // "*" = jede angemeldete Person der Firma
+  return user.roles.some((role) => config.allowedRoles.includes(role));
+}
+
+function callbackUrl(url) {
+  return `${url.origin}/auth/callback`;
 }
 
 function requireLogin(request, url) {
@@ -478,24 +642,61 @@ function inspectSecret(env, name) {
   return null;
 }
 
+/** Prüft eine Klartext-Variable, die eine Microsoft-ID (GUID) enthalten muss. */
+function inspectGuidVariable(value, name) {
+  if (!value) return { name, kind: 'variable-fehlt', aehnlich: [] };
+  if (!GUID_PATTERN.test(value)) return { name, kind: 'ungueltig', aehnlich: [] };
+  return null;
+}
+
 function readConfig(env) {
-  const appPassword = env.APP_PASSWORD;
-  const sessionSecret = env.SESSION_SECRET;
-
-  const problem = inspectSecret(env, 'APP_PASSWORD') || inspectSecret(env, 'SESSION_SECRET');
-  if (problem) return { error: problem };
-
   const number = (value, fallback) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   };
-
-  return {
-    appPassword,
-    sessionSecret,
-    sessionTtlHours: number(env.SESSION_TTL_HOURS, 720),
+  const shared = {
+    sessionSecret: env.SESSION_SECRET,
     shareDefaultTtlHours: number(env.SHARE_DEFAULT_TTL_HOURS, 72),
     shareMaxTtlHours: number(env.SHARE_MAX_TTL_HOURS, 720),
+  };
+
+  const tenantId = String(env.ENTRA_TENANT_ID ?? '').trim().toLowerCase();
+  const clientId = String(env.ENTRA_CLIENT_ID ?? '').trim().toLowerCase();
+
+  // Microsoft-Anmeldung, sobald eine der beiden IDs eingetragen ist. Ist nur
+  // eine eingetragen, meldet die Seite das, statt still beim Passwort zu bleiben.
+  if (tenantId || clientId) {
+    const problem =
+      inspectGuidVariable(tenantId, 'ENTRA_TENANT_ID') ||
+      inspectGuidVariable(clientId, 'ENTRA_CLIENT_ID') ||
+      inspectSecret(env, 'ENTRA_CLIENT_SECRET') ||
+      inspectSecret(env, 'SESSION_SECRET');
+    if (problem) return { error: problem, mode: 'entra' };
+
+    const rolesSetting = String(env.ENTRA_ALLOWED_ROLES ?? 'Trainer,Admin').trim();
+    return {
+      ...shared,
+      mode: 'entra',
+      entra: { tenantId, clientId, clientSecret: env.ENTRA_CLIENT_SECRET },
+      allowedRoles:
+        rolesSetting === '*'
+          ? null
+          : rolesSetting
+              .split(',')
+              .map((role) => role.trim())
+              .filter(Boolean),
+      sessionTtlHours: number(env.ENTRA_SESSION_TTL_HOURS, 168),
+    };
+  }
+
+  const problem = inspectSecret(env, 'APP_PASSWORD') || inspectSecret(env, 'SESSION_SECRET');
+  if (problem) return { error: problem, mode: 'passwort' };
+
+  return {
+    ...shared,
+    mode: 'passwort',
+    appPassword: env.APP_PASSWORD,
+    sessionTtlHours: number(env.SESSION_TTL_HOURS, 720),
   };
 }
 
@@ -518,8 +719,26 @@ falsch geschriebenen Eintrag löschen → neu anlegen, Name in Großbuchstaben
 mit Unterstrich: <code>${name}</code> → <em>Deploy</em>.</p>`
     : '';
 
+  const variableHint =
+    kind === 'variable-fehlt' || kind === 'ungueltig'
+      ? `<p><strong>${
+          kind === 'ungueltig'
+            ? `<code>${name}</code> ist eingetragen, hat aber nicht das Format einer Microsoft-ID.`
+            : `<code>${name}</code> fehlt.`
+        }</strong> Für die Microsoft-Anmeldung braucht der Worker beide IDs aus
+Microsoft Entra: <code>ENTRA_TENANT_ID</code> (Verzeichnis-ID) und
+<code>ENTRA_CLIENT_ID</code> (Anwendungs-ID). Beide sehen so aus:
+<code>1a2b3c4d-1234-5678-9abc-0123456789ab</code>.</p>
+<p><strong>Lösung:</strong> In <code>wrangler.jsonc</code> unter <code>vars</code>
+beide Werte aus der Übersichtsseite der App-Registrierung eintragen und
+veröffentlichen. Anleitung: <code>ANLEITUNG-MICROSOFT-LOGIN.md</code>, Schritt 3 und 10.</p>
+<p>Wer die Microsoft-Anmeldung vorerst nicht nutzen will, lässt <em>beide</em>
+Werte leer – dann gilt wieder das Team-Passwort.</p>`
+      : '';
+
   const diagnosis =
     nearMiss ||
+    variableHint ||
     (kind === 'leer'
       ? `<p><strong>Das Geheimnis <code>${name}</code> existiert, ist aber leer.</strong>
 Im Dashboard sieht es dadurch völlig normal aus – es steht „Value encrypted"
@@ -602,13 +821,31 @@ async function handleStatus(request, env, config) {
   });
 
   // Sobald alles eingerichtet ist, gehört die Seite hinter die Anmeldung.
-  if (!config.error && !(await isSignedIn(request, config))) {
+  const session = config.error ? null : await readSession(request, config);
+  if (!config.error && !session) {
     return jsonResponse({ hinweis: 'Nur für angemeldete Nutzer.' }, 401);
   }
 
+  const origin = new URL(request.url).origin;
+  const guidState = (value) => {
+    const text = String(value ?? '').trim();
+    return { vorhanden: text !== '', formatGueltig: GUID_PATTERN.test(text) };
+  };
+
   return jsonResponse({
     einrichtungKomplett: !config.error,
+    anmeldung: config.mode === 'entra' ? 'Microsoft Entra ID' : 'Team-Passwort',
+    angemeldetAls: session?.user ? { name: session.user.name, benutzer: session.user.username, rollen: session.user.roles } : null,
     problem: config.error ? `${config.error.name} ${config.error.kind}` : null,
+    microsoft: {
+      ENTRA_TENANT_ID: guidState(env.ENTRA_TENANT_ID),
+      ENTRA_CLIENT_ID: guidState(env.ENTRA_CLIENT_ID),
+      ENTRA_CLIENT_SECRET: inspect(env.ENTRA_CLIENT_SECRET),
+      ENTRA_ALLOWED_ROLES: env.ENTRA_ALLOWED_ROLES ?? null,
+      ENTRA_SESSION_TTL_HOURS: env.ENTRA_SESSION_TTL_HOURS ?? null,
+      // Genau diese beiden Adressen müssen in Entra als Umleitungs-URI stehen.
+      umleitungsUrisFuerEntra: [`${origin}/auth/callback`, `${origin}/abgemeldet`],
+    },
     // Wenn ein Geheimnis fehlt, es aber einen fast gleich geschriebenen
     // Eintrag gibt, ist das praktisch immer die Ursache.
     fastRichtigGeschrieben: config.error?.aehnlich?.length ? config.error.aehnlich : null,
@@ -657,6 +894,22 @@ function sessionCookie(value, maxAgeSeconds) {
   return [
     `${COOKIE_NAME}=${value}`,
     'Path=/',
+    'HttpOnly',
+    'Secure',
+    'SameSite=Lax',
+    `Max-Age=${maxAgeSeconds}`,
+  ].join('; ');
+}
+
+/**
+ * Kurzlebiges Cookie für die Minuten der Microsoft-Anmeldung. Nur unter /auth
+ * sichtbar. SameSite=Lax genügt: Die Rückkehr von Microsoft ist eine normale
+ * Seitennavigation (GET), bei der Lax-Cookies mitgeschickt werden.
+ */
+function authFlowCookie(value, maxAgeSeconds) {
+  return [
+    `${AUTH_COOKIE_NAME}=${value}`,
+    'Path=/auth',
     'HttpOnly',
     'Secure',
     'SameSite=Lax',

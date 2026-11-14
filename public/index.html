@@ -246,6 +246,7 @@ body::after{width:480px;height:480px;bottom:-180px;right:-120px;background:radia
   background:transparent;border:0;cursor:pointer;padding:.2rem .4rem;border-radius:.35rem;
   text-decoration:underline;text-underline-offset:3px;transition:color .25s}
 .logout-link:hover{color:var(--gold-lt)}
+.signed-in{font-size:.74rem;letter-spacing:.04em;color:rgba(159,179,170,.65);margin-right:.2rem}
 
 /* ── "ZUM STARTBILDSCHIRM HINZUFÜGEN" ──
    Der Knopf ist im HTML mit `hidden` versehen. Sichtbar wird er nur, wenn
@@ -489,6 +490,7 @@ body::after{width:480px;height:480px;bottom:-180px;right:-120px;background:radia
         </button>
         <div class="crest"><img class="footer-logo" src="by-linzenich-weiss.png" alt="by linzenich – mehr als Fitness" draggable="false"/></div>
         <form method="POST" action="/logout">
+            <span class="signed-in" id="signed-in" hidden></span>
             <button type="submit" class="logout-link">Abmelden</button>
         </form>
         <div>&copy; 2026 Linzenich Gruppe &nbsp;·&nbsp; Nur für interne Nutzung</div>
@@ -532,6 +534,18 @@ body::after{width:480px;height:480px;bottom:-180px;right:-120px;background:radia
         if(e.key === 'Escape') triggers.forEach(close);
     });
 })();
+
+// Bei Microsoft-Anmeldung den Namen neben "Abmelden" zeigen – dann ist auf
+// gemeinsam genutzten Tablets sofort sichtbar, wer gerade angemeldet ist.
+fetch('/api/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (me) {
+        if (!me || !me.name) return;
+        var el = document.getElementById('signed-in');
+        el.textContent = 'Angemeldet als ' + me.name + ' ·';
+        el.hidden = false;
+    })
+    .catch(function () {});
 </script>
 </body>
 </html>

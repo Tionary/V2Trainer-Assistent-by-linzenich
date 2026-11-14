@@ -10,7 +10,7 @@
  *      Studio-WLAN spürbar Ladezeit.
  *
  * Bewusst NICHT zwischengespeichert werden HTML-Seiten und alles unter
- * /api/, /login, /logout, /s/. Sonst könnte ein abgemeldeter Browser noch
+ * /api/, /login, /logout, /auth/, /s/. Sonst könnte ein abgemeldeter Browser noch
  * Inhalte aus dem Speicher zeigen oder eine Anmeldeseite als vermeintliche
  * Modulseite ausliefern.
  */
@@ -75,6 +75,11 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+
+  // Die Microsoft-Anmeldung läuft ohne Umweg über den Service Worker: Die
+  // Rückkehr von login.microsoftonline.com ist eine seitenübergreifende
+  // Weiterleitung, die der Browser selbst abwickeln soll.
+  if (url.pathname.startsWith('/auth/') || url.pathname === '/abgemeldet') return;
 
   if (isCacheable(url)) {
     // Erst Speicher, dann Netz – diese Dateien ändern sich nur bei einem Deploy.

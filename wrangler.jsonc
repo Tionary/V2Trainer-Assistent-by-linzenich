@@ -30,7 +30,8 @@
   // erhalten. Echte Secrets sind ohnehin ausgenommen.
   "keep_vars": true,
 
-  // Nicht geheime Einstellungen. Geheimnisse (APP_PASSWORD, SESSION_SECRET)
+  // Nicht geheime Einstellungen. Geheimnisse (APP_PASSWORD, SESSION_SECRET,
+  // ENTRA_CLIENT_SECRET)
   // gehören NICHT hierher, sondern in den Secret-Store.
   "vars": {
     // Wie lange bleibt ein Mitarbeiter angemeldet (Stunden). 720 = 30 Tage.
@@ -38,7 +39,27 @@
     // Vorauswahl für die Gültigkeit eines QR-Codes (Stunden).
     "SHARE_DEFAULT_TTL_HOURS": "72",
     // Obergrenze, die im QR-Dialog gewählt werden kann (Stunden). 720 = 30 Tage.
-    "SHARE_MAX_TTL_HOURS": "720"
+    "SHARE_MAX_TTL_HOURS": "720",
+
+    // ── Anmeldung mit Microsoft (Entra ID) ──────────────────────────────
+    // Anleitung: ANLEITUNG-MICROSOFT-LOGIN.md
+    //
+    // Solange beide IDs leer sind, gilt weiter das Team-Passwort. Sobald sie
+    // eingetragen sind, meldet sich jede Person mit ihrem Microsoft-Konto an.
+    // Beide IDs stehen auf der Übersichtsseite der App-Registrierung in
+    // Entra. Sie sind nicht geheim. Geheim ist nur ENTRA_CLIENT_SECRET – der
+    // gehört als "Secret" ins Cloudflare-Dashboard, NICHT hierher.
+    //
+    // Verzeichnis-ID (Mandanten-ID / Directory (tenant) ID)
+    "ENTRA_TENANT_ID": "",
+    // Anwendungs-ID (Application (client) ID)
+    "ENTRA_CLIENT_ID": "",
+    // Welche App-Rollen Zugang haben (Komma-getrennt, exakt wie der "Wert"
+    // der Rolle in Entra). "*" = jedes freigeschaltete Konto der Firma.
+    "ENTRA_ALLOWED_ROLES": "Trainer,Admin",
+    // Wie lange eine Microsoft-Anmeldung gilt (Stunden). 168 = 7 Tage.
+    // Kürzer = ausgeschiedene Mitarbeitende verlieren schneller den Zugang.
+    "ENTRA_SESSION_TTL_HOURS": "168"
   },
 
   // Befristete Ablage für PDFs, die ein Modul im Browser erzeugt (Trainingsplan,

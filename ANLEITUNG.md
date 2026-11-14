@@ -26,6 +26,9 @@ Jeder Befehl steht hier zum Kopieren.
 10. [Wenn etwas nicht klappt](#10-wenn-etwas-nicht-klappt)
 11. [Technischer Anhang](#11-technischer-anhang)
 
+> **Anmeldung mit Microsoft-Konten statt Team-Passwort:** eigene Anleitung in
+> [ANLEITUNG-MICROSOFT-LOGIN.md](ANLEITUNG-MICROSOFT-LOGIN.md).
+
 ---
 
 ## 1. Was am Ende dabei herauskommt
@@ -703,12 +706,11 @@ Alle nutzen dasselbe Passwort. Das ist einfach in der Handhabung, bedeutet aber:
 * **Weitergabe lässt sich technisch nicht verhindern.** Bitte im Team klar
   ansagen: Das Passwort ist wie ein Schlüssel zum Studio.
 
-**Wenn Ihr das genauer braucht** – z. B. jede Person meldet sich mit ihrer
-eigenen Firmen-E-Mail an, Zugang beim Austritt einzeln entziehbar,
-Anmeldeprotokoll – dann ist **Cloudflare Access** (im Zero-Trust-Bereich des
-Dashboards) der richtige Weg. Für kleine Teams ist das in der Regel ebenfalls
-kostenlos. Die App muss dafür nicht umgebaut werden; sag Bescheid, dann ergänze
-ich die Anleitung.
+**Die Lösung dafür ist eingebaut:** Jede Person meldet sich mit ihrem
+Microsoft-Konto der Linzenich Gruppe an, der Zugang wird in Microsoft Entra
+einzeln vergeben und entzogen. Einrichtung Schritt für Schritt:
+**[ANLEITUNG-MICROSOFT-LOGIN.md](ANLEITUNG-MICROSOFT-LOGIN.md)**. Bis dahin
+gilt weiter das Team-Passwort.
 
 ### 7.2 QR-Links sind bewusst offen
 
@@ -986,6 +988,10 @@ Nach Änderungen: `npm run deploy`.
   über Antwortzeiten). Bei Erfolg bekommt der Browser ein Cookie mit einem
   HMAC-SHA256-signierten Ablaufdatum – `HttpOnly`, `Secure`, `SameSite=Lax`.
   Im Cookie steht kein Passwort und kein Name.
+* **Microsoft-Anmeldung** (sobald eingerichtet): OpenID Connect mit PKCE,
+  vollständige Prüfung des ID-Tokens, Zugang nur mit App-Rolle. Im Cookie
+  stehen dann Name, Benutzername und Rollen, signiert. Details:
+  [ANLEITUNG-MICROSOFT-LOGIN.md, Abschnitt 8](ANLEITUNG-MICROSOFT-LOGIN.md#8-technischer-hintergrund).
 * **Passwortwechsel wirkt sofort:** In der Signatur steckt ein Fingerabdruck
   des aktuellen Passworts. Ändert es sich, passt keine alte Signatur mehr.
 * **QR-Links:** eigener, getrennt signierter Token, der genau einen Pfad

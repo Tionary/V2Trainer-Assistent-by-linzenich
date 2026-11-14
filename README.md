@@ -1,12 +1,17 @@
 # Trainer-Assistent by linzenich
 
 Interne Trainer-Werkzeuge der Linzenich Gruppe – Ernährung, Kraft, Ausdauer und
-Beweglichkeit – als passwortgeschützte Website auf Cloudflare Workers.
+Beweglichkeit – als geschützte Website auf Cloudflare Workers. Anmeldung mit
+dem Microsoft-Konto der Firma oder mit einem Team-Passwort.
 
 ## 👉 Anleitung
 
 **[ANLEITUNG.md](ANLEITUNG.md)** – Schritt für Schritt von Null bis zur
 laufenden Seite, inklusive Datenschutz, Kosten und Problemlösung.
+
+**Anmeldung mit Microsoft-Konten (Entra ID):**
+[ANLEITUNG-MICROSOFT-LOGIN.md](ANLEITUNG-MICROSOFT-LOGIN.md) – solange sie
+nicht eingerichtet ist, gilt das Team-Passwort.
 
 ## Schnellstart
 
@@ -40,7 +45,7 @@ Dafür ist eine einmalige Einrichtung nötig – siehe
 ## Aufbau
 
 * `public/` – die App (wird veröffentlicht)
-* `src/` – der Cloudflare Worker: Passwortschutz und QR-Freigaben
+* `src/` – der Cloudflare Worker: Anmeldung (Microsoft oder Passwort) und QR-Freigaben
 * `scripts/` – Helfer für PDF-Liste, Schriften, Icon-Prüfung und App-Symbole
 * `archiv/`, `quellen/` – Altbestand und Rohdaten, werden **nicht** veröffentlicht
 
@@ -50,6 +55,7 @@ Dafür ist eine einmalige Einrichtung nötig – siehe
 npm run dev            # lokale Vorschau auf localhost:8787
 npm run deploy         # veröffentlichen
 npm run check          # Konfiguration prüfen
+npm run test:auth      # Anmeldung (Microsoft und Passwort) automatisiert testen
 npm run check:icons    # prüfen, ob alle Icons in der Schrift enthalten sind
 npm run build:app-icons # App-Symbole in public/icons/ neu erzeugen
 ```
