@@ -13,10 +13,15 @@ const escapeHtml = (value) =>
 
 /**
  * @param {object} options
- * @param {string} options.next    Ziel nach erfolgreicher Anmeldung
- * @param {string} [options.error] Fehlermeldung über dem Formular
+ * @param {'passwort'|'beide'|'microsoft'} [options.mode] Anmeldeart:
+ *        nur Passwort, Passwort mit kleinem Microsoft-Link, nur Microsoft
+ * @param {string} options.next     Ziel nach erfolgreicher Anmeldung
+ * @param {string} [options.error]  Fehlermeldung über dem Formular
+ * @param {string} [options.notice] Hinweis, z. B. nach der Abmeldung
  */
-export function renderLoginPage({ next = '/', error = '' } = {}) {
+export function renderLoginPage({ mode = 'passwort', next = '/', error = '', notice = '' } = {}) {
+  const microsoft = mode === 'microsoft';
+  const both = mode === 'beide';
   return `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -91,7 +96,7 @@ input[type=password]:focus{outline:none;border-color:var(--gold-lt);
   color:var(--mut);cursor:pointer;font-family:var(--ms);font-size:1.25rem;
 }
 .toggle:hover{color:var(--gold-lt)}
-button[type=submit]{
+button[type=submit],.ms-btn{
   width:100%;margin-top:1.25rem;font-family:inherit;font-size:.82rem;font-weight:800;
   letter-spacing:.14em;text-transform:uppercase;color:#08221b;cursor:pointer;
   padding:.95rem 1rem;border:0;border-radius:.8rem;
@@ -99,8 +104,23 @@ button[type=submit]{
   box-shadow:0 12px 24px -12px rgba(92,184,92,.8);
   transition:transform .2s, box-shadow .2s, filter .2s;
 }
-button[type=submit]:hover{transform:translateY(-2px);filter:brightness(1.06)}
-button[type=submit]:active{transform:translateY(0)}
+button[type=submit]:hover,.ms-btn:hover{transform:translateY(-2px);filter:brightness(1.06)}
+button[type=submit]:active,.ms-btn:active{transform:translateY(0)}
+.ms-btn{display:flex;align-items:center;justify-content:center;gap:.75rem;text-decoration:none;margin-top:.25rem}
+.ms-btn:focus-visible{outline:2px solid var(--gold-lt);outline-offset:3px}
+.ms-logo{width:1.1rem;height:1.1rem;flex-shrink:0}
+.alt{display:flex;align-items:center;justify-content:center;gap:.5rem;margin-top:1rem;
+  font-size:.8rem;color:var(--mut);text-decoration:underline;text-underline-offset:3px;
+  text-decoration-color:rgba(159,179,170,.4)}
+.alt:hover{color:var(--gold-lt)}
+.alt:focus-visible{outline:2px solid var(--gold-lt);outline-offset:3px;border-radius:.3rem}
+.alt .ms-logo{width:.85rem;height:.85rem}
+.notice{
+  display:flex;align-items:flex-start;gap:.55rem;margin-bottom:1.1rem;padding:.75rem .9rem;
+  border-radius:.7rem;font-size:.84rem;line-height:1.5;color:var(--green-lt);
+  background:rgba(127,210,127,.10);border:1px solid rgba(127,210,127,.35);
+}
+.notice .ms{font-family:var(--ms);font-size:1.1rem;flex-shrink:0;margin-top:.05rem}
 .error{
   display:flex;align-items:flex-start;gap:.55rem;margin-bottom:1.1rem;padding:.75rem .9rem;
   border-radius:.7rem;font-size:.84rem;line-height:1.5;color:var(--danger);
@@ -121,11 +141,54 @@ button[type=submit]:active{transform:translateY(0)}
     <div class="panel__inner">
       <h1>Interner Zugang</h1>
       <p class="sub">Der Trainer-Assistent steht ausschließlich Mitarbeitenden der
-        Linzenich Gruppe zur Verfügung. Bitte gib das Team-Passwort ein.</p>
+        Linzenich Gruppe zur Verfügung. ${
+          microsoft
+            ? 'Melde Dich mit Deinem Microsoft-Konto der Linzenich Gruppe an.'
+            : 'Bitte gib das Team-Passwort ein.'
+        }</p>
 
-      ${error ? `<div class="error"><span class="ms">warning</span><span>${escapeHtml(error)}</span></div>` : ''}
+      ${notice ? `<div class="notice"><span class="ms">check_circle</span><span>${escapeHtml(notice)}</span></div>` : ''}
+      ${error ? `<div class="error" role="alert"><span class="ms">warning</span><span>${escapeHtml(error)}</span></div>` : ''}
 
-      <form method="POST" action="/login" autocomplete="on">
+      ${microsoft ? microsoftButton(next) : passwordForm(next)}
+      ${both ? microsoftLink(next) : ''}
+
+      <p class="hint">${
+        microsoft
+          ? 'Auf gemeinsam genutzten Tablets und Rechnern bitte nach der Arbeit abmelden – die Abmeldung gilt dann auch bei Microsoft.'
+          : 'Du bleibst auf diesem Gerät angemeldet, bis du dich abmeldest. Auf gemeinsam genutzten Rechnern bitte nach der Arbeit abmelden.'
+      }</p>
+    </div>
+  </div>
+
+  <p class="foot">&copy; 2026 Linzenich Gruppe · Nur für interne Nutzung</p>
+</main>
+
+${microsoft ? '' : PASSWORD_TOGGLE_SCRIPT}
+</body>
+</html>`;
+}
+
+// Microsoft-Logo aus vier Quadraten, als Inline-SVG (keine externe Datei).
+const MS_LOGO = `<svg class="ms-logo" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
+          <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+          <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+        </svg>`;
+
+const startHref = (next) => escapeHtml(`/auth/start?next=${encodeURIComponent(next || '/')}`);
+
+/** Großer Knopf – Stufe "microsoft", einzige Anmeldeart. */
+function microsoftButton(next) {
+  return `<a class="ms-btn" href="${startHref(next)}">${MS_LOGO} Mit Microsoft anmelden</a>`;
+}
+
+/** Kleiner Link unter dem Passwortfeld – Stufe "beide". */
+function microsoftLink(next) {
+  return `<a class="alt" href="${startHref(next)}">${MS_LOGO} Oder mit Microsoft-Konto anmelden</a>`;
+}
+
+function passwordForm(next) {
+  return `<form method="POST" action="/login" autocomplete="on">
         <input type="hidden" name="next" value="${escapeHtml(next)}"/>
         <label for="password">Team-Passwort</label>
         <div class="field">
@@ -135,17 +198,10 @@ button[type=submit]:active{transform:translateY(0)}
                   aria-label="Passwort anzeigen">visibility</button>
         </div>
         <button type="submit">Anmelden</button>
-      </form>
+      </form>`;
+}
 
-      <p class="hint">Du bleibst auf diesem Gerät angemeldet, bis du dich abmeldest.
-        Auf gemeinsam genutzten Rechnern bitte nach der Arbeit abmelden.</p>
-    </div>
-  </div>
-
-  <p class="foot">&copy; 2026 Linzenich Gruppe · Nur für interne Nutzung</p>
-</main>
-
-<script>
+const PASSWORD_TOGGLE_SCRIPT = `<script>
 'use strict';
 (function () {
   var toggle = document.getElementById('toggle');
@@ -158,7 +214,4 @@ button[type=submit]:active{transform:translateY(0)}
     input.focus();
   });
 })();
-</script>
-</body>
-</html>`;
-}
+</script>`;
