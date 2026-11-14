@@ -13,7 +13,7 @@ const CLIENT = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const OID = '99999999-8888-7777-6666-555555555555';
 const ORIGIN = 'https://trainer.example.workers.dev';
 const env = {
-  ENTRA_TENANT_ID: TENANT, ENTRA_CLIENT_ID: CLIENT, ENTRA_CLIENT_SECRET: 'S3cr3t-Wert~xyz',
+  ANMELDUNG: 'microsoft', ENTRA_TENANT_ID: TENANT, ENTRA_CLIENT_ID: CLIENT, ENTRA_CLIENT_SECRET: 'S3cr3t-Wert~xyz',
   SESSION_SECRET: 'x'.repeat(48), ENTRA_ALLOWED_ROLES: 'Trainer,Admin', ENTRA_SESSION_TTL_HOURS: '168',
   ASSETS: { fetch: async (r) => new Response('<html>App</html>', { headers: { 'Content-Type': 'text/html' } }) },
 };
@@ -88,7 +88,7 @@ await test('Erfolgreiche Anmeldung mit Rolle Trainer', async () => {
   const app = await call('/kraft-coach.html', { cookie: sessionCookie });
   assert.equal(app.status, 200);
   const me = await (await call('/api/me', { cookie: sessionCookie })).json();
-  assert.deepEqual(me, { modus: 'entra', name: 'Anna Trainer', benutzer: 'anna@linzenich-gruppe.de', rollen: ['Trainer'] });
+  assert.deepEqual(me, { modus: 'microsoft', name: 'Anna Trainer', benutzer: 'anna@linzenich-gruppe.de', rollen: ['Trainer'] });
 });
 
 await test('Ohne passende Rolle → 403, keine Sitzung', async () => {
@@ -192,7 +192,7 @@ await test('QR-Links bleiben ohne Anmeldung erreichbar (abgelaufen → 410)', as
   const r = await call('/s/kaputt.abc'); assert.equal(r.status, 410);
 });
 
-await test('Konfigfehler: nur Tenant-ID gesetzt → klare Meldung', async () => {
+await test('Konfigfehler (Stufe microsoft): fehlende/falsche Einträge → klare Meldung', async () => {
   const r = await worker.fetch(new Request(ORIGIN + '/'), { ...env, ENTRA_CLIENT_ID: '' });
   assert.equal(r.status, 503); assert.ok((await r.text()).includes('ENTRA_CLIENT_ID</code> fehlt'));
   const r2 = await worker.fetch(new Request(ORIGIN + '/'), { ...env, ENTRA_CLIENT_SECRET: undefined });
@@ -207,12 +207,12 @@ await test('/__status zeigt Umleitungs-URIs (angemeldet)', async () => {
   const cb = await call(`/auth/callback?code=abc&state=${f.state}`, { cookie: f.flowCookie });
   const s = await (await call('/__status', { cookie: cookieVal(cb, 'ta_session') })).json();
   assert.deepEqual(s.microsoft.umleitungsUrisFuerEntra, [ORIGIN + '/auth/callback', ORIGIN + '/abgemeldet']);
-  assert.equal(s.anmeldung, 'Microsoft Entra ID'); assert.equal(s.angemeldetAls.name, 'Anna Trainer');
+  assert.equal(s.anmeldung, 'Nur Microsoft'); assert.equal(s.microsoft.eingerichtet, true); assert.equal(s.angemeldetAls.name, 'Anna Trainer');
   assert.ok(!JSON.stringify(s).includes('S3cr3t'));
 });
 
-await test('Passwort-Modus unverändert, wenn Entra-IDs leer', async () => {
-  const penv = { APP_PASSWORD: 'Kettlebell-74', SESSION_SECRET: 'y'.repeat(48), ASSETS: env.ASSETS, ENTRA_TENANT_ID: '', ENTRA_CLIENT_ID: '' };
+await test('Stufe passwort ohne Entra: unverändert wie bisher', async () => {
+  const penv = { ANMELDUNG: 'passwort', APP_PASSWORD: 'Kettlebell-74', SESSION_SECRET: 'y'.repeat(48), ASSETS: env.ASSETS, ENTRA_TENANT_ID: '', ENTRA_CLIENT_ID: '' };
   let r = await worker.fetch(new Request(ORIGIN + '/login'), penv);
   assert.ok((await r.text()).includes('type="password"'));
   r = await worker.fetch(new Request(ORIGIN + '/login', { method: 'POST', redirect: 'manual', headers: { Origin: ORIGIN, 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'password=Kettlebell-74&next=/' }), penv);
@@ -224,6 +224,81 @@ await test('Passwort-Modus unverändert, wenn Entra-IDs leer', async () => {
   assert.equal(r.headers.get('Location'), '/login');
   r = await worker.fetch(new Request(ORIGIN + '/logout', { method: 'POST', redirect: 'manual', headers: { Origin: ORIGIN, Cookie: c } }), penv);
   assert.equal(r.headers.get('Location'), '/login');
+});
+
+
+const PW = 'Kettlebell-74';
+const envFor = (stufe, extra = {}) => ({ ...env, ANMELDUNG: stufe, APP_PASSWORD: PW, ...extra });
+const callEnv = (e, path, { method = 'GET', cookie, body } = {}) => worker.fetch(new Request(ORIGIN + path, {
+  method, redirect: 'manual', body,
+  headers: { Accept: 'text/html', Origin: ORIGIN, ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}), ...(cookie ? { Cookie: cookie } : {}) },
+}), e);
+const passwordLogin = async (e) => {
+  const r = await callEnv(e, '/login', { method: 'POST', body: `password=${PW}&next=/` });
+  return r.status === 302 ? r.headers.getSetCookie()[0].split(';')[0] : null;
+};
+async function microsoftLogin(e) {
+  const r = await callEnv(e, '/auth/start?next=/');
+  if (r.status !== 302 || !r.headers.get('Location').startsWith('https://login.microsoftonline.com')) return null;
+  const loc = new URL(r.headers.get('Location'));
+  const flow = r.headers.getSetCookie()[0].split(';')[0];
+  tokenBehaviour = async () => Response.json({ id_token: await sign(baseClaims(loc.searchParams.get('nonce'))) });
+  const cb = await callEnv(e, `/auth/callback?code=abc&state=${loc.searchParams.get('state')}`, { cookie: flow });
+  const c = cb.headers.getSetCookie().find((x) => x.startsWith('ta_session='));
+  return c ? c.split(';')[0] : null;
+}
+
+await test('Stufe passwort mit fertiger Entra-Einrichtung: kein Microsoft sichtbar, Probelauf über /auth/start möglich', async () => {
+  const e = envFor('passwort');
+  const html = await (await callEnv(e, '/login')).text();
+  assert.ok(html.includes('type="password"')); assert.ok(!html.includes('Microsoft'));
+  assert.ok(await passwordLogin(e));
+  const ms = await microsoftLogin(e); assert.ok(ms);
+  assert.equal((await callEnv(e, '/', { cookie: ms })).status, 200);
+});
+
+await test('Stufe passwort mit halb fertiger Entra-Einrichtung: Seite läuft trotzdem', async () => {
+  const e = envFor('passwort', { ENTRA_CLIENT_ID: '', ENTRA_CLIENT_SECRET: undefined });
+  assert.equal((await callEnv(e, '/login')).status, 200);
+  assert.ok(await passwordLogin(e));
+  const r = await callEnv(e, '/auth/start'); assert.equal(r.headers.get('Location'), '/login');
+});
+
+await test('Stufe beide: Passwortfeld plus kleiner Microsoft-Link, beide Wege funktionieren', async () => {
+  const e = envFor('beide');
+  const html = await (await callEnv(e, '/login')).text();
+  assert.ok(html.includes('type="password"')); assert.ok(html.includes('Oder mit Microsoft-Konto anmelden'));
+  assert.ok(!html.includes('class="ms-btn"'));
+  const pw = await passwordLogin(e); assert.ok(pw);
+  const ms = await microsoftLogin(e); assert.ok(ms);
+  // Abmelden: Passwort → /login, Microsoft → Microsoft-Logout
+  assert.equal((await callEnv(e, '/logout', { method: 'POST', cookie: pw })).headers.get('Location'), '/login');
+  assert.ok((await callEnv(e, '/logout', { method: 'POST', cookie: ms })).headers.get('Location').startsWith('https://login.microsoftonline.com/'));
+  const me = await (await callEnv(e, '/api/me', { cookie: pw })).json(); assert.equal(me.modus, 'passwort');
+});
+
+await test('Wechsel beide → microsoft: Passwort-Sitzungen enden sofort, Passwort-Login abgewiesen', async () => {
+  const pw = await passwordLogin(envFor('beide')); assert.ok(pw);
+  const e = envFor('microsoft');
+  assert.equal((await callEnv(e, '/', { cookie: pw })).status, 302);
+  assert.equal(await passwordLogin(e), null);
+  const html = await (await callEnv(e, '/login')).text();
+  assert.ok(!html.includes('type="password"')); assert.ok(html.includes('class="ms-btn"'));
+});
+
+await test('Stufe microsoft braucht kein APP_PASSWORD mehr', async () => {
+  const e = envFor('microsoft', { APP_PASSWORD: undefined });
+  assert.equal((await callEnv(e, '/login')).status, 200);
+});
+
+await test('Stufe beide ohne Client-Secret → Einrichtungshinweis statt kaputter Seite', async () => {
+  const r = await callEnv(envFor('beide', { ENTRA_CLIENT_SECRET: undefined }), '/');
+  assert.equal(r.status, 503); assert.ok((await r.text()).includes('ENTRA_CLIENT_SECRET'));
+});
+
+await test('Unbekannte Stufe → klare Meldung', async () => {
+  const r = await callEnv(envFor('nur-microsoft'), '/');
+  assert.equal(r.status, 503); assert.ok((await r.text()).includes('unbekannten Wert'));
 });
 
 console.log(results.join('\n'));

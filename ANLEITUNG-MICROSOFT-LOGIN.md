@@ -9,9 +9,18 @@ Entra fest – nicht im Trainer-Assistenten.
 *Anwendungsadministrator*, notfalls *Globaler Administrator*) und jemand mit
 Zugang zum Cloudflare-Konto und zum GitHub-Repository.
 
-> **Nichts geht verloren:** Solange Du die Schritte 10 und 11 nicht erledigt
-> hast, läuft die Seite unverändert mit dem Team-Passwort weiter. Du kannst die
-> Einrichtung in Entra also in Ruhe vorbereiten.
+> **Du bestimmst, wann es live geht.** Die Einstellung `ANMELDUNG` in der
+> `wrangler.jsonc` hat drei Stufen:
+>
+> | Stufe | Anmeldeseite | Wann |
+> |---|---|---|
+> | `"passwort"` | nur Team-Passwort, kein Hinweis auf Microsoft | jetzt – während Du einrichtest und selbst testest |
+> | `"beide"` | Team-Passwort, darunter klein „Oder mit Microsoft-Konto anmelden“ | nachdem das Team informiert ist (Übergangszeit) |
+> | `"microsoft"` | nur noch „Mit Microsoft anmelden“ | fester Wechsel; das Team-Passwort gilt ab dann nicht mehr |
+>
+> Ausgeliefert ist `"passwort"`. Die Einrichtung in Entra kannst Du also in
+> Ruhe erledigen und selbst ausprobieren, ohne dass jemand im Team etwas
+> davon sieht.
 
 ---
 
@@ -21,7 +30,7 @@ Zugang zum Cloudflare-Konto und zum GitHub-Repository.
 2. [Vorher klären: Clubaccounts oder persönliche Konten?](#2-vorher-klären-clubaccounts-oder-persönliche-konten)
 3. [Schritt für Schritt in Microsoft Entra](#3-schritt-für-schritt-in-microsoft-entra)
 4. [Schritt für Schritt in Cloudflare und GitHub](#4-schritt-für-schritt-in-cloudflare-und-github)
-5. [Prüfen](#5-prüfen)
+5. [Selbst testen, dann ankündigen, dann umstellen](#5-selbst-testen-dann-ankündigen-dann-umstellen)
 6. [Im Alltag](#6-im-alltag)
 7. [Wenn etwas nicht klappt](#7-wenn-etwas-nicht-klappt)
 8. [Technischer Hintergrund](#8-technischer-hintergrund)
@@ -30,7 +39,8 @@ Zugang zum Cloudflare-Konto und zum GitHub-Repository.
 
 ## 1. Was am Ende dabei herauskommt
 
-* Die Anmeldeseite zeigt einen Knopf **„Mit Microsoft anmelden“**.
+* Nach dem festen Wechsel zeigt die Anmeldeseite nur noch einen Knopf **„Mit
+  Microsoft anmelden“** (in der Übergangszeit klein unter dem Passwortfeld).
 * Wer darauf tippt, landet bei Microsoft, wählt sein Konto und kommt zurück.
   Ist die Person am Gerät schon bei Microsoft angemeldet (z. B. durch Outlook
   im selben Browser), reicht ein Tipp auf das Konto.
@@ -45,6 +55,8 @@ Zugang zum Cloudflare-Konto und zum GitHub-Repository.
   Entra deaktiviert oder die Zuweisung entfernt – spätestens nach Ablauf der
   7 Tage (Details in [6.3](#63-jemand-verlässt-das-team)).
 * QR-Codes für Kunden funktionieren unverändert ohne Anmeldung.
+* Wer mit dem Team-Passwort angemeldet ist, wird beim Abmelden **nicht** zu
+  Microsoft weitergeleitet – das passiert nur bei Microsoft-Anmeldungen.
 
 ---
 
@@ -179,7 +191,7 @@ trägt zusätzlich `http://localhost:8787/auth/callback` und
 > Kalender ein: „Trainer-Assistent: Microsoft-Schlüssel erneuern
 > (ANLEITUNG-MICROSOFT-LOGIN.md, 6.4)“. Das Ablaufdatum steht in der Tabelle.
 
-Bewahre den Wert bis Schritt 11 sicher auf (z. B. im Passwortmanager), nicht
+Bewahre den Wert bis Schritt 10 sicher auf (z. B. im Passwortmanager), nicht
 in einer E-Mail oder einem Chat.
 
 ### Schritt 6 – Berechtigungen und Administratorzustimmung
@@ -270,22 +282,7 @@ Weiterhin in der **Unternehmensanwendung**:
 
 ## 4. Schritt für Schritt in Cloudflare und GitHub
 
-### Schritt 10 – Die beiden IDs in die `wrangler.jsonc` eintragen
-
-Auf github.com im Repository die Datei `wrangler.jsonc` öffnen → Stift-Symbol
-(*Edit*). Unter `"vars"` die beiden leeren Felder füllen:
-
-```jsonc
-    "ENTRA_TENANT_ID": "9f8e7d6c-…",   // Verzeichnis-ID aus Schritt 3
-    "ENTRA_CLIENT_ID": "1a2b3c4d-…",   // Anwendungs-ID aus Schritt 3
-```
-
-**Noch nicht speichern** („Commit changes“), sondern erst Schritt 11
-erledigen. Sonst stellt die Seite beim nächsten Deploy auf Microsoft um,
-während der Schlüssel noch fehlt – sie zeigt dann bis zu Schritt 11
-„Einrichtung noch nicht abgeschlossen“.
-
-### Schritt 11 – Den geheimen Schlüssel bei Cloudflare hinterlegen
+### Schritt 10 – Den geheimen Schlüssel bei Cloudflare hinterlegen
 
 1. Cloudflare-Dashboard → **Compute (Workers)** → Euer Worker
    `trainer-assistent-by-linzenich`
@@ -302,24 +299,41 @@ Es gelten dieselben Regeln wie beim Team-Passwort (ANLEITUNG.md, Schritt A5):
 Typ *Secret*, nicht *Text*; Name exakt in Großbuchstaben mit Unterstrichen;
 kein Leerzeichen am Ende des Werts.
 
-### Schritt 12 – Umstellen
+### Schritt 11 – Die beiden IDs in die `wrangler.jsonc` eintragen
 
-Jetzt in GitHub die Änderung an der `wrangler.jsonc` aus Schritt 10 speichern
-(**Commit changes** auf `main`). Cloudflare veröffentlicht automatisch, nach
-etwa einer Minute ist die Microsoft-Anmeldung aktiv.
+Auf github.com im Repository die Datei `wrangler.jsonc` öffnen → Stift-Symbol
+(*Edit*). Unter `"vars"` die beiden leeren Felder füllen und **`ANMELDUNG`
+auf `"passwort"` lassen**:
 
-Alle, die bisher mit dem Team-Passwort angemeldet waren, werden dabei
-abgemeldet und sehen den Microsoft-Knopf.
+```jsonc
+    "ANMELDUNG": "passwort",
+    …
+    "ENTRA_TENANT_ID": "9f8e7d6c-…",   // Verzeichnis-ID aus Schritt 3
+    "ENTRA_CLIENT_ID": "1a2b3c4d-…",   // Anwendungs-ID aus Schritt 3
+```
+
+**Commit changes** auf `main`. Nach etwa einer Minute ist die Änderung live –
+für das Team ändert sich **nichts**, die Anmeldeseite sieht aus wie immer.
 
 ---
 
-## 5. Prüfen
+## 5. Selbst testen, dann ankündigen, dann umstellen
 
-1. **Mit einem freigeschalteten Konto:** Seite in einem privaten
-   Browserfenster öffnen → „Mit Microsoft anmelden“ → Konto wählen → Du landest
-   auf der Startseite. Unten steht „Angemeldet als …“.
+### 5.1 Selbst testen (Stufe „passwort“, unsichtbar fürs Team)
+
+Microsoft ist jetzt eingerichtet, aber auf der Anmeldeseite nicht zu sehen.
+Zum Ausprobieren rufst Du die Startadresse der Microsoft-Anmeldung direkt auf:
+
+```
+https://…/auth/start
+```
+
+1. **Mit einem freigeschalteten Konto** in einem privaten Browserfenster
+   `https://…/auth/start` öffnen → Konto wählen → Du landest auf der
+   Startseite. Unten steht „Angemeldet als …“.
 2. **Diagnose:** `https://…/__status` öffnen. Dort muss stehen:
-   * `"anmeldung": "Microsoft Entra ID"`
+   * `"anmeldung": "Team-Passwort (Microsoft unsichtbar)"`
+   * `"microsoft": { "eingerichtet": true, "problem": null, … }`
    * `"angemeldetAls"` mit Deinem Namen und Deiner Rolle
    * unter `umleitungsUrisFuerEntra` genau die beiden Adressen, die in Entra
      eingetragen sind
@@ -330,10 +344,69 @@ abgemeldet und sehen den Microsoft-Knopf.
    welches Konto abgemeldet werden soll → Seite „Du bist abgemeldet“.
 5. **QR-Code:** einen bestehenden QR-Code mit dem Handy scannen – die PDF
    öffnet sich weiterhin ohne Anmeldung.
+6. **Ein, zwei Trainer** als Testpersonen dieselbe Adresse ausprobieren
+   lassen, am besten auch auf einem Studio-Tablet und einem iPhone mit der
+   App auf dem Startbildschirm.
 
-Wenn alles klappt: Das Secret `APP_PASSWORD` in Cloudflare **nicht löschen**.
-Es wird im Microsoft-Modus ignoriert, dient aber als Notfall-Zugang
-([6.5](#65-notfall-microsoft-anmeldung-abschalten)).
+> Die Adresse `/auth/start` ist kein Geheimnis, aber auch ohne Wirkung für
+> Unbefugte: Hinein kommt nur, wer in Entra freigeschaltet ist und eine Rolle
+> hat.
+
+### 5.2 Team informieren
+
+Was die Mitarbeitenden wissen müssen – als Vorlage für die Info-Mail:
+
+> **Neu im Trainer-Assistenten: Anmeldung mit Deinem Microsoft-Konto**
+>
+> Ab sofort kannst Du Dich im Trainer-Assistenten mit Deinem Microsoft-Konto
+> der Linzenich Gruppe anmelden – also mit denselben Zugangsdaten wie für
+> Outlook und Teams. Auf der Anmeldeseite findest Du dafür unter dem
+> Passwortfeld den Link „Oder mit Microsoft-Konto anmelden“.
+>
+> Das Team-Passwort funktioniert noch bis zum **[Datum]**. Danach ist nur
+> noch die Anmeldung mit Microsoft möglich.
+>
+> Auf gemeinsam genutzten Tablets bitte nach der Schicht unten auf der
+> Startseite „Abmelden“ tippen – das meldet auch bei Microsoft ab.
+>
+> Wenn die Anmeldung meldet, dass Dein Konto nicht freigeschaltet ist, melde
+> Dich bei **[Ansprechpartner]**.
+
+### 5.3 Übergangszeit einschalten (Stufe „beide“)
+
+In der `wrangler.jsonc` auf github.com:
+
+```jsonc
+    "ANMELDUNG": "beide",
+```
+
+**Commit changes** auf `main`. Nach etwa einer Minute steht unter dem
+Passwortfeld klein „Oder mit Microsoft-Konto anmelden“. Wer schon mit dem
+Passwort angemeldet ist, bleibt angemeldet.
+
+In dieser Zeit lohnt ein Blick, wer schon umgestiegen ist: Wer sich mit
+Microsoft anmeldet, sieht unten auf der Startseite „Angemeldet als …“. Bei
+Passwort-Anmeldungen steht dort nichts.
+
+### 5.4 Fest umstellen (Stufe „microsoft“)
+
+Zum angekündigten Datum:
+
+```jsonc
+    "ANMELDUNG": "microsoft",
+```
+
+**Commit changes** auf `main`. Nach etwa einer Minute:
+
+* Die Anmeldeseite zeigt nur noch den großen Knopf „Mit Microsoft anmelden“.
+* Alle, die noch mit dem Team-Passwort angemeldet waren, sind **sofort
+  abgemeldet** und müssen sich mit Microsoft anmelden.
+* Das Team-Passwort funktioniert nicht mehr – auch nicht, wenn jemand es noch
+  kennt.
+
+Das Secret `APP_PASSWORD` in Cloudflare **nicht löschen**. Es wird in dieser
+Stufe ignoriert, dient aber als Notfall-Zugang
+([6.5](#65-notfall-zurück-zum-team-passwort)).
 
 ---
 
@@ -385,18 +458,20 @@ Punkt 2 und 3.
 Weil der alte Schlüssel bis Schritt 4 gültig bleibt, gibt es keine
 Unterbrechung.
 
-### 6.5 Notfall: Microsoft-Anmeldung abschalten
+### 6.5 Notfall: zurück zum Team-Passwort
 
 Falls Microsoft gestört ist oder die Einrichtung klemmt: In der
-`wrangler.jsonc` **beide** Werte `ENTRA_TENANT_ID` und `ENTRA_CLIENT_ID`
-wieder auf `""` setzen und speichern. Nach dem Deploy gilt wieder das
-Team-Passwort (`APP_PASSWORD`).
+`wrangler.jsonc` `ANMELDUNG` auf `"beide"` (Passwort wieder zusätzlich
+erlaubt) oder `"passwort"` (Microsoft wieder unsichtbar) setzen und
+speichern. Nach dem Deploy gilt wieder das Team-Passwort (`APP_PASSWORD`).
+Die Einrichtung in Entra bleibt dabei unberührt.
 
 ### 6.6 Einstellungen in der `wrangler.jsonc`
 
 | Variable | Bedeutung | Standard |
 |---|---|---|
-| `ENTRA_TENANT_ID` | Verzeichnis-ID. Leer = Team-Passwort statt Microsoft | `""` |
+| `ANMELDUNG` | `"passwort"`, `"beide"` oder `"microsoft"` (siehe oben) | `"passwort"` |
+| `ENTRA_TENANT_ID` | Verzeichnis-ID aus Entra | `""` |
 | `ENTRA_CLIENT_ID` | Anwendungs-ID der App-Registrierung | `""` |
 | `ENTRA_ALLOWED_ROLES` | Welche App-Rollen hinein dürfen, mit Komma getrennt. `*` = jedes Konto, das Entra durchlässt | `Trainer,Admin` |
 | `ENTRA_SESSION_TTL_HOURS` | Wie lange eine Anmeldung gilt (Stunden) | `168` (7 Tage) |
@@ -415,13 +490,14 @@ Die Seite übersetzt die häufigsten; hier die Ursachen:
 | **AADSTS50011** – Umleitungs-URI passt nicht | Die Adresse in Entra weicht ab (http statt https, Schrägstrich am Ende, alte Domain) | `/__status` zeigt unter `umleitungsUrisFuerEntra` die exakt nötigen Adressen → in Entra (Schritt 4) genau so eintragen |
 | **AADSTS50105** – „nicht freigeschaltet“ | Konto hat keine Zuweisung zur App | Schritt 9 für dieses Konto |
 | „…hat aber keine Rolle für den Trainer-Assistenten“ | Zugewiesen, aber ohne Rolle (*Standardzugriff*) oder Rolle mit anderem Wert | Zuweisung löschen und mit Rolle **Trainer** neu anlegen; Wert der Rolle prüfen (Schritt 7) |
-| **AADSTS700016** – Anwendung nicht gefunden | `ENTRA_CLIENT_ID` oder `ENTRA_TENANT_ID` falsch oder vertauscht | Schritt 3 und 10 vergleichen |
-| **AADSTS7000215** – ungültiger geheimer Schlüssel | *Geheime ID* statt *Wert* eingetragen, oder Leerzeichen mitkopiert | Neuen Schlüssel erzeugen (Schritt 5), **Wert** eintragen (Schritt 11) |
+| **AADSTS700016** – Anwendung nicht gefunden | `ENTRA_CLIENT_ID` oder `ENTRA_TENANT_ID` falsch oder vertauscht | Schritt 3 und 11 vergleichen |
+| **AADSTS7000215** – ungültiger geheimer Schlüssel | *Geheime ID* statt *Wert* eingetragen, oder Leerzeichen mitkopiert | Neuen Schlüssel erzeugen (Schritt 5), **Wert** eintragen (Schritt 10) |
 | **AADSTS7000222** – Schlüssel abgelaufen | 24 Monate um | [6.4](#64-schlüssel-erneuern-alle-24-monate) |
 | **AADSTS65001** – Zustimmung fehlt | Administratorzustimmung nicht erteilt | Schritt 6, Punkt 4 |
 | „Dieses Konto gehört nicht zur Linzenich Gruppe“ | Privates Microsoft-Konto oder Konto einer anderen Firma gewählt | Mit dem Firmenkonto anmelden |
 | „Die Anmeldung ist abgelaufen oder wurde in einem anderen Fenster gestartet“ | Mehr als 10 Minuten bei Microsoft verbracht, oder Anmeldung in zwei Tabs gleichzeitig | Einfach erneut auf „Mit Microsoft anmelden“ |
-| „Einrichtung noch nicht abgeschlossen“ mit `ENTRA_…` im Text | Eine der IDs fehlt/ist falsch geschrieben, oder `ENTRA_CLIENT_SECRET` fehlt | Die Seite nennt den betroffenen Eintrag; `/__status` zeigt Details |
+| „Einrichtung noch nicht abgeschlossen“ mit `ENTRA_…` im Text | Stufe `beide` oder `microsoft` gewählt, aber eine der IDs fehlt/ist falsch geschrieben oder `ENTRA_CLIENT_SECRET` fehlt | Die Seite nennt den betroffenen Eintrag; `/__status` zeigt Details. Sofort-Hilfe: `ANMELDUNG` zurück auf `"passwort"` |
+| `/auth/start` führt zurück zur Anmeldeseite (Stufe `passwort`) | Microsoft-Einrichtung unvollständig | `/__status` → `microsoft.problem` nennt den fehlenden Eintrag |
 | Nach Abmelden zeigt Microsoft eine Fehlerseite statt „Du bist abgemeldet“ | `…/abgemeldet` fehlt in den Umleitungs-URIs | Schritt 4, Punkt 2 |
 
 Ein Blick in die Protokolle hilft ebenfalls: Cloudflare → Worker →
@@ -462,9 +538,15 @@ Für die IT oder einen späteren Entwickler:
   Gerät. Im Verzeichnis der Verarbeitungstätigkeiten sollte der
   Trainer-Assistent trotzdem mit „Anmeldung über Microsoft Entra ID“ ergänzt
   werden.
+* **Stufen:** In `passwort` werden Microsoft-Sitzungen akzeptiert, sobald
+  Entra vollständig eingerichtet ist (Probelauf), eine unvollständige
+  Einrichtung legt die Seite aber nie lahm. In `microsoft` werden
+  Passwort-Sitzungen bei der nächsten Anfrage verworfen und `APP_PASSWORD`
+  wird nicht mehr benötigt.
 * **Test:** `npm run test:auth` spielt den kompletten Ablauf mit einem
-  nachgebauten Microsoft-Server durch: erfolgreiche Anmeldung, fehlende
-  Rolle, fremder Mandant, falsche App, abgelaufenes Token, falscher Nonce,
-  fremde Signatur, unbekannte Schlüssel-ID, `alg: none`, manipulierter
+  nachgebauten Microsoft-Server durch (28 Prüfungen): erfolgreiche Anmeldung,
+  fehlende Rolle, fremder Mandant, falsche App, abgelaufenes Token, falscher
+  Nonce, fremde Signatur, unbekannte Schlüssel-ID, `alg: none`, manipulierter
   state, gefälschtes Sitzungs-Cookie, offener Redirect, Abmeldung,
-  Konfigurationsfehler und der unveränderte Passwort-Modus.
+  Konfigurationsfehler und alle drei Stufen einschließlich des Wechsels von
+  `beide` auf `microsoft`.

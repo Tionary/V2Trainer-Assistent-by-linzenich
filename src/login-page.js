@@ -13,13 +13,15 @@ const escapeHtml = (value) =>
 
 /**
  * @param {object} options
- * @param {'passwort'|'microsoft'} [options.mode] Anmeldeart
+ * @param {'passwort'|'beide'|'microsoft'} [options.mode] Anmeldeart:
+ *        nur Passwort, Passwort mit kleinem Microsoft-Link, nur Microsoft
  * @param {string} options.next     Ziel nach erfolgreicher Anmeldung
  * @param {string} [options.error]  Fehlermeldung über dem Formular
  * @param {string} [options.notice] Hinweis, z. B. nach der Abmeldung
  */
 export function renderLoginPage({ mode = 'passwort', next = '/', error = '', notice = '' } = {}) {
   const microsoft = mode === 'microsoft';
+  const both = mode === 'beide';
   return `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -107,6 +109,12 @@ button[type=submit]:active,.ms-btn:active{transform:translateY(0)}
 .ms-btn{display:flex;align-items:center;justify-content:center;gap:.75rem;text-decoration:none;margin-top:.25rem}
 .ms-btn:focus-visible{outline:2px solid var(--gold-lt);outline-offset:3px}
 .ms-logo{width:1.1rem;height:1.1rem;flex-shrink:0}
+.alt{display:flex;align-items:center;justify-content:center;gap:.5rem;margin-top:1rem;
+  font-size:.8rem;color:var(--mut);text-decoration:underline;text-underline-offset:3px;
+  text-decoration-color:rgba(159,179,170,.4)}
+.alt:hover{color:var(--gold-lt)}
+.alt:focus-visible{outline:2px solid var(--gold-lt);outline-offset:3px;border-radius:.3rem}
+.alt .ms-logo{width:.85rem;height:.85rem}
 .notice{
   display:flex;align-items:flex-start;gap:.55rem;margin-bottom:1.1rem;padding:.75rem .9rem;
   border-radius:.7rem;font-size:.84rem;line-height:1.5;color:var(--green-lt);
@@ -143,6 +151,7 @@ button[type=submit]:active,.ms-btn:active{transform:translateY(0)}
       ${error ? `<div class="error" role="alert"><span class="ms">warning</span><span>${escapeHtml(error)}</span></div>` : ''}
 
       ${microsoft ? microsoftButton(next) : passwordForm(next)}
+      ${both ? microsoftLink(next) : ''}
 
       <p class="hint">${
         microsoft
@@ -160,16 +169,22 @@ ${microsoft ? '' : PASSWORD_TOGGLE_SCRIPT}
 </html>`;
 }
 
-function microsoftButton(next) {
-  const href = `/auth/start?next=${encodeURIComponent(next || '/')}`;
-  // Microsoft-Logo aus vier Quadraten, als Inline-SVG (keine externe Datei).
-  return `<a class="ms-btn" href="${escapeHtml(href)}">
-        <svg class="ms-logo" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
+// Microsoft-Logo aus vier Quadraten, als Inline-SVG (keine externe Datei).
+const MS_LOGO = `<svg class="ms-logo" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
           <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
           <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-        </svg>
-        Mit Microsoft anmelden
-      </a>`;
+        </svg>`;
+
+const startHref = (next) => escapeHtml(`/auth/start?next=${encodeURIComponent(next || '/')}`);
+
+/** Großer Knopf – Stufe "microsoft", einzige Anmeldeart. */
+function microsoftButton(next) {
+  return `<a class="ms-btn" href="${startHref(next)}">${MS_LOGO} Mit Microsoft anmelden</a>`;
+}
+
+/** Kleiner Link unter dem Passwortfeld – Stufe "beide". */
+function microsoftLink(next) {
+  return `<a class="alt" href="${startHref(next)}">${MS_LOGO} Oder mit Microsoft-Konto anmelden</a>`;
 }
 
 function passwordForm(next) {

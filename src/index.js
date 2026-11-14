@@ -165,7 +165,7 @@ async function route(request, env, url, config) {
   if (path === '/api/me') {
     if (!signedIn) return jsonResponse({ error: 'Nicht angemeldet' }, 401);
     return jsonResponse({
-      modus: config.mode,
+      modus: session.user ? 'microsoft' : 'passwort',
       name: session.user?.name || null,
       benutzer: session.user?.username || null,
       rollen: session.user?.roles || [],
@@ -192,15 +192,10 @@ async function route(request, env, url, config) {
 async function handleLogin(request, env, url, config) {
   const next = safeNext(url.searchParams.get('next'));
 
-  if (config.mode === 'entra') {
-    if (await readSession(request, config)) return redirect(next);
-    return htmlResponse(renderLoginPage({ mode: 'microsoft', next }));
-  }
-
-  if (request.method !== 'POST') {
+  if (request.method !== 'POST' || !config.passwordEnabled) {
     // Wer schon angemeldet ist, braucht das Formular nicht.
     if (await readSession(request, config)) return redirect(next);
-    return htmlResponse(renderLoginPage({ next }));
+    return htmlResponse(loginPage(config, { next }));
   }
 
   const form = await request.formData();
@@ -209,7 +204,7 @@ async function handleLogin(request, env, url, config) {
 
   if (!(await withinLoginRateLimit(request, env))) {
     return htmlResponse(
-      renderLoginPage({
+      loginPage(config, {
         next: target,
         error: 'Zu viele Versuche. Bitte warte eine Minute und probiere es erneut.',
       }),
@@ -219,20 +214,24 @@ async function handleLogin(request, env, url, config) {
 
   if (!(await passwordMatches(config.sessionSecret, password, config.appPassword))) {
     return htmlResponse(
-      renderLoginPage({ next: target, error: 'Das Passwort stimmt nicht.' }),
+      loginPage(config, { next: target, error: 'Das Passwort stimmt nicht.' }),
       401,
     );
   }
 
-  const token = await createSessionToken(config.sessionSecret, config.appPassword, config.sessionTtlHours);
+  const token = await createSessionToken(
+    config.sessionSecret,
+    config.appPassword,
+    config.passwordSessionTtlHours,
+  );
   const response = redirect(target);
-  response.headers.set('Set-Cookie', sessionCookie(token, config.sessionTtlHours * 3600));
+  response.headers.set('Set-Cookie', sessionCookie(token, config.passwordSessionTtlHours * 3600));
   return response;
 }
 
 /** Schickt den Browser zur Microsoft-Anmeldung. */
 async function handleAuthStart(request, url, config) {
-  if (config.mode !== 'entra') return redirect('/login');
+  if (!config.entra) return redirect('/login');
   if (request.method !== 'GET') return redirect('/login');
 
   const next = safeNext(url.searchParams.get('next'));
@@ -250,10 +249,10 @@ async function handleAuthStart(request, url, config) {
 
 /** Rückkehr von Microsoft: Code einlösen, prüfen, Sitzung ausstellen. */
 async function handleAuthCallback(request, url, config) {
-  if (config.mode !== 'entra') return redirect('/login');
+  if (!config.entra) return redirect('/login');
 
   const fail = (message, status = 401) => {
-    const response = htmlResponse(renderLoginPage({ mode: 'microsoft', error: message }), status);
+    const response = htmlResponse(loginPage(config, { error: message }), status);
     response.headers.append('Set-Cookie', authFlowCookie('', 0));
     return response;
   };
@@ -305,26 +304,27 @@ async function handleAuthCallback(request, url, config) {
     );
   }
 
-  const token = await createUserSessionToken(config.sessionSecret, user, config.sessionTtlHours);
+  const token = await createUserSessionToken(config.sessionSecret, user, config.entraSessionTtlHours);
   const response = redirect(safeNext(flow.x));
-  response.headers.append('Set-Cookie', sessionCookie(token, config.sessionTtlHours * 3600));
+  response.headers.append('Set-Cookie', sessionCookie(token, config.entraSessionTtlHours * 3600));
   response.headers.append('Set-Cookie', authFlowCookie('', 0));
   return response;
 }
 
 function handleSignedOut(url, config) {
-  if (config.mode !== 'entra') return redirect('/login');
-  return htmlResponse(
-    renderLoginPage({ mode: 'microsoft', notice: 'Du bist abgemeldet – hier und bei Microsoft.' }),
-  );
+  if (!config.entra) return redirect('/login');
+  return htmlResponse(loginPage(config, { notice: 'Du bist abgemeldet – hier und bei Microsoft.' }));
 }
 
-function handleLogout(request, url, config) {
+async function handleLogout(request, url, config) {
   if (request.method !== 'POST') return redirect('/');
-  // Bei Microsoft-Anmeldung auch dort abmelden. Sonst meldet "Anmelden" auf
-  // einem gemeinsam genutzten Tablet ohne Rückfrage wieder dieselbe Person an.
+  // Wer mit Microsoft angemeldet war, wird auch dort abgemeldet. Sonst meldet
+  // "Anmelden" auf einem gemeinsam genutzten Tablet ohne Rückfrage wieder
+  // dieselbe Person an. Wer mit dem Team-Passwort drin war, landet wie bisher
+  // auf der Anmeldeseite.
+  const session = await readSession(request, config);
   const response = redirect(
-    config.mode === 'entra' ? logoutUrl(config.entra, `${url.origin}/abgemeldet`) : '/login',
+    session?.user && config.entra ? logoutUrl(config.entra, `${url.origin}/abgemeldet`) : '/login',
   );
   response.headers.set('Set-Cookie', sessionCookie('', 0));
   return response;
@@ -332,20 +332,24 @@ function handleLogout(request, url, config) {
 
 /**
  * Liest die Sitzung aus dem Cookie.
- * Rückgabe: { user } bei gültiger Sitzung (user ist im Passwort-Modus null),
- * sonst null.
+ * Rückgabe: { user } bei gültiger Sitzung – user ist bei einer
+ * Microsoft-Anmeldung die Person, bei Team-Passwort null –, sonst null.
  */
 async function readSession(request, config) {
   const token = readCookie(request.headers.get('Cookie'), COOKIE_NAME);
   if (!token) return null;
 
-  if (config.mode === 'entra') {
+  if (token.startsWith('u1.')) {
+    if (!config.entra) return null;
     const user = await verifyUserSessionToken(config.sessionSecret, token);
     // Die Rolle wird bei jeder Anfrage erneut geprüft: Wird die Liste der
     // erlaubten Rollen verkleinert, wirkt das sofort.
     return user && hasAllowedRole(user, config) ? { user } : null;
   }
 
+  // Passwort-Sitzungen gelten nur, solange das Passwort erlaubt ist. Mit dem
+  // Wechsel auf ANMELDUNG = "microsoft" enden sie sofort.
+  if (!config.passwordEnabled) return null;
   return (await verifySessionToken(config.sessionSecret, config.appPassword, token))
     ? { user: null }
     : null;
@@ -354,6 +358,12 @@ async function readSession(request, config) {
 function hasAllowedRole(user, config) {
   if (config.allowedRoles === null) return true; // "*" = jede angemeldete Person der Firma
   return user.roles.some((role) => config.allowedRoles.includes(role));
+}
+
+/** Anmeldeseite passend zur eingestellten Stufe. */
+function loginPage(config, options) {
+  const mode = { passwort: 'passwort', beide: 'beide', microsoft: 'microsoft' }[config.loginMode];
+  return renderLoginPage({ ...options, mode });
 }
 
 function callbackUrl(url) {
@@ -649,54 +659,61 @@ function inspectGuidVariable(value, name) {
   return null;
 }
 
+/** Die drei Stufen der Einstellung ANMELDUNG. */
+const LOGIN_MODES = ['passwort', 'beide', 'microsoft'];
+
 function readConfig(env) {
   const number = (value, fallback) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   };
-  const shared = {
-    sessionSecret: env.SESSION_SECRET,
-    shareDefaultTtlHours: number(env.SHARE_DEFAULT_TTL_HOURS, 72),
-    shareMaxTtlHours: number(env.SHARE_MAX_TTL_HOURS, 720),
-  };
+
+  const loginMode = String(env.ANMELDUNG ?? 'passwort').trim().toLowerCase();
+  if (!LOGIN_MODES.includes(loginMode)) {
+    return { error: { name: 'ANMELDUNG', kind: 'ungueltige-stufe', aehnlich: [] } };
+  }
 
   const tenantId = String(env.ENTRA_TENANT_ID ?? '').trim().toLowerCase();
   const clientId = String(env.ENTRA_CLIENT_ID ?? '').trim().toLowerCase();
+  const entraProblem =
+    inspectGuidVariable(tenantId, 'ENTRA_TENANT_ID') ||
+    inspectGuidVariable(clientId, 'ENTRA_CLIENT_ID') ||
+    inspectSecret(env, 'ENTRA_CLIENT_SECRET');
 
-  // Microsoft-Anmeldung, sobald eine der beiden IDs eingetragen ist. Ist nur
-  // eine eingetragen, meldet die Seite das, statt still beim Passwort zu bleiben.
-  if (tenantId || clientId) {
-    const problem =
-      inspectGuidVariable(tenantId, 'ENTRA_TENANT_ID') ||
-      inspectGuidVariable(clientId, 'ENTRA_CLIENT_ID') ||
-      inspectSecret(env, 'ENTRA_CLIENT_SECRET') ||
-      inspectSecret(env, 'SESSION_SECRET');
-    if (problem) return { error: problem, mode: 'entra' };
+  // Stufe "passwort": Eine halb fertige Microsoft-Einrichtung darf die
+  // laufende Seite nie lahmlegen – Microsoft bleibt dann einfach aus.
+  // Stufen "beide" und "microsoft": Ohne vollständige Einrichtung geht nichts.
+  if (loginMode !== 'passwort' && entraProblem) return { error: entraProblem, loginMode };
 
-    const rolesSetting = String(env.ENTRA_ALLOWED_ROLES ?? 'Trainer,Admin').trim();
-    return {
-      ...shared,
-      mode: 'entra',
-      entra: { tenantId, clientId, clientSecret: env.ENTRA_CLIENT_SECRET },
-      allowedRoles:
-        rolesSetting === '*'
-          ? null
-          : rolesSetting
-              .split(',')
-              .map((role) => role.trim())
-              .filter(Boolean),
-      sessionTtlHours: number(env.ENTRA_SESSION_TTL_HOURS, 168),
-    };
-  }
+  const passwordEnabled = loginMode !== 'microsoft';
+  const problem =
+    (passwordEnabled && inspectSecret(env, 'APP_PASSWORD')) || inspectSecret(env, 'SESSION_SECRET');
+  if (problem) return { error: problem, loginMode };
 
-  const problem = inspectSecret(env, 'APP_PASSWORD') || inspectSecret(env, 'SESSION_SECRET');
-  if (problem) return { error: problem, mode: 'passwort' };
-
+  const rolesSetting = String(env.ENTRA_ALLOWED_ROLES ?? 'Trainer,Admin').trim();
   return {
-    ...shared,
-    mode: 'passwort',
-    appPassword: env.APP_PASSWORD,
-    sessionTtlHours: number(env.SESSION_TTL_HOURS, 720),
+    loginMode,
+    sessionSecret: env.SESSION_SECRET,
+    shareDefaultTtlHours: number(env.SHARE_DEFAULT_TTL_HOURS, 72),
+    shareMaxTtlHours: number(env.SHARE_MAX_TTL_HOURS, 720),
+
+    passwordEnabled,
+    appPassword: passwordEnabled ? env.APP_PASSWORD : null,
+    passwordSessionTtlHours: number(env.SESSION_TTL_HOURS, 720),
+
+    // In Stufe "passwort" ist Microsoft eingerichtet, aber unsichtbar: kein
+    // Knopf auf der Anmeldeseite. Über /auth/start lässt es sich trotzdem
+    // schon ausprobieren (Probelauf vor der Ankündigung im Team).
+    entra: entraProblem ? null : { tenantId, clientId, clientSecret: env.ENTRA_CLIENT_SECRET },
+    entraProblem: entraProblem ? `${entraProblem.name} ${entraProblem.kind}` : null,
+    allowedRoles:
+      rolesSetting === '*'
+        ? null
+        : rolesSetting
+            .split(',')
+            .map((role) => role.trim())
+            .filter(Boolean),
+    entraSessionTtlHours: number(env.ENTRA_SESSION_TTL_HOURS, 168),
   };
 }
 
@@ -731,10 +748,15 @@ Microsoft Entra: <code>ENTRA_TENANT_ID</code> (Verzeichnis-ID) und
 <code>1a2b3c4d-1234-5678-9abc-0123456789ab</code>.</p>
 <p><strong>Lösung:</strong> In <code>wrangler.jsonc</code> unter <code>vars</code>
 beide Werte aus der Übersichtsseite der App-Registrierung eintragen und
-veröffentlichen. Anleitung: <code>ANLEITUNG-MICROSOFT-LOGIN.md</code>, Schritt 3 und 10.</p>
-<p>Wer die Microsoft-Anmeldung vorerst nicht nutzen will, lässt <em>beide</em>
-Werte leer – dann gilt wieder das Team-Passwort.</p>`
-      : '';
+veröffentlichen. Anleitung: <code>ANLEITUNG-MICROSOFT-LOGIN.md</code>, Schritt 3 und 11.</p>
+<p>Wer die Microsoft-Anmeldung vorerst nicht nutzen will, setzt
+<code>ANMELDUNG</code> in <code>wrangler.jsonc</code> auf <code>"passwort"</code> –
+dann gilt wieder nur das Team-Passwort.</p>`
+      : kind === 'ungueltige-stufe'
+        ? `<p><strong><code>ANMELDUNG</code> hat einen unbekannten Wert.</strong>
+Erlaubt sind genau drei Wörter: <code>"passwort"</code>, <code>"beide"</code>
+oder <code>"microsoft"</code> (in <code>wrangler.jsonc</code> unter <code>vars</code>).</p>`
+        : '';
 
   const diagnosis =
     nearMiss ||
@@ -834,10 +856,17 @@ async function handleStatus(request, env, config) {
 
   return jsonResponse({
     einrichtungKomplett: !config.error,
-    anmeldung: config.mode === 'entra' ? 'Microsoft Entra ID' : 'Team-Passwort',
+    anmeldung: {
+      passwort: 'Team-Passwort (Microsoft unsichtbar)',
+      beide: 'Team-Passwort, Microsoft als zusätzliche Option',
+      microsoft: 'Nur Microsoft',
+    }[config.loginMode ?? String(env.ANMELDUNG ?? 'passwort').trim().toLowerCase()] ?? 'ungültige Stufe',
+    ANMELDUNG: env.ANMELDUNG ?? null,
     angemeldetAls: session?.user ? { name: session.user.name, benutzer: session.user.username, rollen: session.user.roles } : null,
     problem: config.error ? `${config.error.name} ${config.error.kind}` : null,
     microsoft: {
+      eingerichtet: Boolean(config.entra),
+      problem: config.entraProblem ?? null,
       ENTRA_TENANT_ID: guidState(env.ENTRA_TENANT_ID),
       ENTRA_CLIENT_ID: guidState(env.ENTRA_CLIENT_ID),
       ENTRA_CLIENT_SECRET: inspect(env.ENTRA_CLIENT_SECRET),

@@ -709,8 +709,8 @@ Alle nutzen dasselbe Passwort. Das ist einfach in der Handhabung, bedeutet aber:
 **Die Lösung dafür ist eingebaut:** Jede Person meldet sich mit ihrem
 Microsoft-Konto der Linzenich Gruppe an, der Zugang wird in Microsoft Entra
 einzeln vergeben und entzogen. Einrichtung Schritt für Schritt:
-**[ANLEITUNG-MICROSOFT-LOGIN.md](ANLEITUNG-MICROSOFT-LOGIN.md)**. Bis dahin
-gilt weiter das Team-Passwort.
+**[ANLEITUNG-MICROSOFT-LOGIN.md](ANLEITUNG-MICROSOFT-LOGIN.md)**. Bis Ihr
+umschaltet, gilt weiter das Team-Passwort.
 
 ### 7.2 QR-Links sind bewusst offen
 

@@ -41,12 +41,18 @@
     // Obergrenze, die im QR-Dialog gewählt werden kann (Stunden). 720 = 30 Tage.
     "SHARE_MAX_TTL_HOURS": "720",
 
-    // ── Anmeldung mit Microsoft (Entra ID) ──────────────────────────────
+    // ── Anmeldung ───────────────────────────────────────────────────────
     // Anleitung: ANLEITUNG-MICROSOFT-LOGIN.md
     //
-    // Solange beide IDs leer sind, gilt weiter das Team-Passwort. Sobald sie
-    // eingetragen sind, meldet sich jede Person mit ihrem Microsoft-Konto an.
-    // Beide IDs stehen auf der Übersichtsseite der App-Registrierung in
+    // Welche Anmeldung die Seite anbietet – genau eins dieser drei Wörter:
+    //   "passwort"  – nur Team-Passwort (wie bisher). Microsoft ist
+    //                 unsichtbar, lässt sich aber über /auth/start schon testen.
+    //   "beide"     – Team-Passwort, darunter klein "Oder mit Microsoft-Konto
+    //                 anmelden". Für die Übergangszeit nach der Ankündigung.
+    //   "microsoft" – nur noch Microsoft. Alle Passwort-Sitzungen enden sofort.
+    "ANMELDUNG": "passwort",
+    //
+    // Die beiden IDs stehen auf der Übersichtsseite der App-Registrierung in
     // Entra. Sie sind nicht geheim. Geheim ist nur ENTRA_CLIENT_SECRET – der
     // gehört als "Secret" ins Cloudflare-Dashboard, NICHT hierher.
     //

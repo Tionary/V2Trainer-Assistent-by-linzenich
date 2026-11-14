@@ -10,8 +10,9 @@ dem Microsoft-Konto der Firma oder mit einem Team-Passwort.
 laufenden Seite, inklusive Datenschutz, Kosten und Problemlösung.
 
 **Anmeldung mit Microsoft-Konten (Entra ID):**
-[ANLEITUNG-MICROSOFT-LOGIN.md](ANLEITUNG-MICROSOFT-LOGIN.md) – solange sie
-nicht eingerichtet ist, gilt das Team-Passwort.
+[ANLEITUNG-MICROSOFT-LOGIN.md](ANLEITUNG-MICROSOFT-LOGIN.md). Umschalten in
+drei Stufen über `ANMELDUNG` in `wrangler.jsonc`: `passwort` (Standard) →
+`beide` → `microsoft`.
 
 ## Schnellstart
 
